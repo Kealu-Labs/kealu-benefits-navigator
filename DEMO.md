@@ -14,7 +14,7 @@
       "command": "/bin/zsh",
       "args": [
         "-c",
-        "set -a && source ~/.env && source /path/to/kealu-benefits-navigator/.env && set +a && exec /path/to/kealu-benefits-navigator/.venv/bin/python -m benefit_navigator"
+        "set -a && source ~/.env && source /path/to/kealu-benefits-navigator/.env && set +a && exec /path/to/kealu-benefits-navigator/.venv/bin/python -m benefits_navigator"
       ],
       "cwd": "/path/to/kealu-benefits-navigator"
     }

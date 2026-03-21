@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.mcp_server import _execute_tool
+from benefits_navigator.mcp_server import _execute_tool
 
 from ..conftest import DEMO_PROFILE
 

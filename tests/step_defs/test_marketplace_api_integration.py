@@ -14,7 +14,7 @@ import os
 import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.marketplace_api import (
+from benefits_navigator.marketplace_api import (
     estimate_eligibility,
     resolve_county,
     search_plans,

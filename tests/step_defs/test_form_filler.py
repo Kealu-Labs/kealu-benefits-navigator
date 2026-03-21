@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.form_filler import (
+from benefits_navigator.form_filler import (
     fill_official_form,
     generate_application,
     has_official_form,
@@ -180,7 +180,7 @@ def given_snap_output(ctx):
 
 @when("generate_application is called")
 def call_generate(ctx):
-    from benefit_navigator.mcp_server import _normalize_state
+    from benefits_navigator.mcp_server import _normalize_state
 
     _normalize_state(ctx.args)
     ctx.path, ctx.form_type = generate_application(

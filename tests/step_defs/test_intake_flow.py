@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.mcp_server import _check_intake_completeness, _execute_tool
+from benefits_navigator.mcp_server import _check_intake_completeness, _execute_tool
 
 from ..conftest import DEMO_PROFILE_FULL
 
@@ -111,10 +111,10 @@ def run_intake_check(ctx):
 
 @when("the tool is executed")
 def execute_tool(ctx, monkeypatch):
-    # Mock _run_benefit_navigator to avoid actually calling kvr
-    import benefit_navigator.mcp_server as mcp_mod
+    # Mock _run_benefits_navigator to avoid actually calling kvr
+    import benefits_navigator.mcp_server as mcp_mod
 
-    monkeypatch.setattr(mcp_mod, "_run_benefit_navigator", lambda args, **kw: "WORKFLOW_TRIGGERED")
+    monkeypatch.setattr(mcp_mod, "_run_benefits_navigator", lambda args, **kw: "WORKFLOW_TRIGGERED")
     ctx.result = _execute_tool("navigate_benefits", ctx.args)
     ctx.tool_executed = True
 
