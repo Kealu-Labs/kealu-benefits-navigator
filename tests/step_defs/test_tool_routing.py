@@ -171,24 +171,20 @@ def check_flag(ctx, flag, value):
     raise AssertionError(f"Expected '{flag}' '{value}' in command: {ctx.kvr_cmd}")
 
 
-@then('the kvr command includes "--var-file"')
-def check_var_file_flag(ctx):
-    assert "--var-file" in ctx.kvr_cmd, f"Expected '--var-file' in command: {ctx.kvr_cmd}"
+@then(parsers.parse('the kvr command includes var "{key}" with value "{value}"'))
+def check_var_arg(ctx, key, value):
+    expected = f"{key}={value}"
+    for i, arg in enumerate(ctx.kvr_cmd):
+        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1] == expected:
+            return
+    raise AssertionError(f"Expected '--var' '{expected}' in command: {ctx.kvr_cmd}")
 
 
-@then(parsers.parse('the var file contains key "{key}" with value "{value}"'))
-def check_var_file_key(ctx, key, value):
-    assert key in ctx.var_file_data, f"Key '{key}' not in var file data: {ctx.var_file_data}"
-    assert ctx.var_file_data[key] == value, (
-        f"Expected '{key}'='{value}', got '{ctx.var_file_data[key]}'"
-    )
-
-
-@then(parsers.parse('the var file does not contain key "{key}"'))
-def check_var_file_key_absent(ctx, key):
-    assert key not in ctx.var_file_data, (
-        f"Found unexpected key '{key}' in var file data: {ctx.var_file_data}"
-    )
+@then(parsers.parse('the kvr command does not include var "{key}"'))
+def check_var_arg_absent(ctx, key):
+    for i, arg in enumerate(ctx.kvr_cmd):
+        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1].startswith(f"{key}="):
+            raise AssertionError(f"Found unexpected '--var' '{ctx.kvr_cmd[i + 1]}' in command")
 
 
 @then("kvr assist was invoked")
