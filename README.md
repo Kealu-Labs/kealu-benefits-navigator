@@ -1,6 +1,6 @@
 # Benefit & Insurance Navigator
 
-Multi-agent system powered by **Gemini** that discovers government benefits and insurance plans, validates eligibility, and produces prioritized enrollment action plans. Built with [Kealu Vector](https://kealu.com), an enterprise AI workflow orchestrator, and integrated with **Google Antigravity** via MCP.
+Model-agnostic multi-agent system that discovers government benefits and insurance plans, validates eligibility, and produces prioritized enrollment action plans. Built with [Kealu Vector](https://kealu.com), an enterprise AI workflow orchestrator, and integrated with **Google Antigravity** via MCP. Kealu Vector supports any LLM provider — our target environment uses **Gemini**.
 
 ## The Problem
 
@@ -12,7 +12,7 @@ The people who need these programs most are the least equipped to navigate them.
 
 ## How It Works
 
-A user asks Antigravity for help with benefits. Gemini, through the MCP server, orchestrates a 5-phase workflow where each phase is handled by a specialized Gemini-powered agent:
+A user asks Antigravity for help with benefits. Through the MCP server, Vector orchestrates a 5-phase workflow where each phase is handled by a specialized agent (Gemini in our target configuration, but Vector is model-agnostic):
 
 ```
                   ┌──────────────┐         ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
@@ -33,17 +33,17 @@ A user asks Antigravity for help with benefits. Gemini, through the MCP server, 
                   ◀── parallel ──▶
 ```
 
-1. **Benefits Research** (Gemini agent) — Discovers federal, state, and county assistance programs (SNAP, Medicaid, CHIP, WIC, LIHEAP, Section 8, TANF, etc.) with estimated dollar values
-2. **Insurance Research** (Gemini agent) — Compares plans across 6 channels: ACA marketplace, off-marketplace, short-term, health sharing ministries, ICHRA, QSEHRA — with copay-level detail
-3. **Evidence Verification** (Gemini agent) — Adversarial fact-checker that independently recalculates FPL, verifies Medicaid expansion status, cross-checks data consistency across phases, and validates every income threshold against reference tables. **If critical errors are found, a feedback loop sends corrections back to phases 1 & 2 for re-execution.**
-4. **Eligibility Validation** (Gemini agent) — Cross-validates all determinations using verified data, detects coverage gaps and income cliffs
-5. **Action Plan** (Gemini agent) — Produces a prioritized enrollment plan with deadlines, document checklists, application URLs, and contingency paths
+1. **Benefits Research** — Discovers federal, state, and county assistance programs (SNAP, Medicaid, CHIP, WIC, LIHEAP, Section 8, TANF, etc.) with estimated dollar values
+2. **Insurance Research** — Compares plans across 6 channels: ACA marketplace, off-marketplace, short-term, health sharing ministries, ICHRA, QSEHRA — with copay-level detail
+3. **Evidence Verification** — Adversarial fact-checker that independently recalculates FPL, verifies Medicaid expansion status, cross-checks data consistency across phases, and validates every income threshold against reference tables. **If critical errors are found, a feedback loop sends corrections back to phases 1 & 2 for re-execution.**
+4. **Eligibility Validation** — Cross-validates all determinations using verified data, detects coverage gaps and income cliffs
+5. **Action Plan** — Produces a prioritized enrollment plan with deadlines, document checklists, application URLs, and contingency paths
 
 Phases 1 & 2 run **in parallel** via a dependency DAG. Phase 3 acts as an adversarial checkpoint — if the research agents hallucinated data or made calculation errors, the feedback loop catches it before eligibility determinations are made. Quality gates enforce output completeness and catch vague language.
 
 ## Why Kealu Vector
 
-Most AI tools give you a single prompt and a single model call. Vector orchestrates **multiple specialized Gemini agents** through structured, multi-phase workflows — each agent has a defined persona, domain context, and quality gates that validate its output before the next phase begins.
+Most AI tools give you a single prompt and a single model call. Vector orchestrates **multiple specialized agents** through structured, multi-phase workflows — each agent has a defined persona, domain context, and quality gates that validate its output before the next phase begins. Vector is model-agnostic: swap the underlying LLM by changing a single configuration value without touching workflow logic, personas, or quality gates.
 
 What makes this different from a prompt chain or a simple agent loop:
 
@@ -106,7 +106,7 @@ kealu-benefit-navigator/
 │   └── action-planner.md
 ├── contexts/community/        # Domain knowledge contexts
 │   └── benefit-navigator.md   # FPL tables, program reference, quality standards
-├── tests/                     # 71 BDD tests (pytest-bdd)
+├── tests/                     # 78 BDD tests (pytest-bdd) + 3 integration tests
 │   ├── features/              # Gherkin scenarios
 │   └── step_defs/             # Step implementations
 ├── .env.example               # CMS API key template
@@ -154,7 +154,7 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 
 Then ask Antigravity: "I need help finding benefits and insurance options for my family"
 
-The MCP server guides the conversation through a tiered intake flow — collecting ZIP code, income, household composition, medications, providers, and budget — before triggering the full 5-phase Gemini-powered analysis.
+The MCP server guides the conversation through a tiered intake flow — collecting ZIP code, income, household composition, medications, providers, and budget — before triggering the full 5-phase analysis.
 
 ### With Kealu Vector CLI
 
@@ -202,7 +202,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system diagram, data flow, k
 
 ## Technologies
 
-- **Gemini** — Powers all 5 specialized agents through Kealu Vector's orchestration
+- **Gemini** (target environment) — Powers all 5 specialized agents through Kealu Vector's model-agnostic orchestration
 - **Google Antigravity** — Agent-first IDE providing the conversational interface via MCP
 - **Healthcare.gov Marketplace API** — Live insurance plan data, subsidy calculations, and eligibility estimates from CMS
 - **MCP (Model Context Protocol)** — stdio-based JSON-RPC 2.0 connecting Antigravity to the benefit navigator
