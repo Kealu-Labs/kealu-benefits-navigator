@@ -263,6 +263,54 @@ _TOOLS = [
             "required": ["household_profile", "zip_code"],
         },
     },
+    {
+        "name": "generate_application_draft",
+        "description": (
+            "Generate a pre-filled PDF application for benefit programs. "
+            "For states with official fillable forms (e.g. California SAWS-1), "
+            "fills the actual government form. For other states, generates an "
+            "Application Preparation Worksheet. Call AFTER navigate_benefits. "
+            "Returns the file path to the generated PDF."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "household_profile": {
+                    "type": "string",
+                    "description": "Household details (same as navigate_benefits)",
+                },
+                "state": {
+                    "type": "string",
+                    "description": "US state (e.g. 'California', 'TX')",
+                },
+                "zip_code": {
+                    "type": "string",
+                    "description": "5-digit ZIP code",
+                },
+                "county": {
+                    "type": "string",
+                    "description": "County name (e.g. 'Los Angeles County')",
+                },
+                "income_type": {
+                    "type": "string",
+                    "description": "Employment, self-employment, unemployment, etc.",
+                },
+                "health_needs": {
+                    "type": "string",
+                    "description": "Health conditions and needs",
+                },
+                "workflow_output": {
+                    "type": "string",
+                    "description": (
+                        "The full text output from navigate_benefits. Pass the "
+                        "complete analysis so the PDF can extract eligible programs "
+                        "and document requirements."
+                    ),
+                },
+            },
+            "required": ["household_profile", "workflow_output"],
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -349,6 +397,10 @@ def _handle_check_eligibility(arguments: dict[str, Any], *, progress_token: str 
 
 def _handle_compare_insurance(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
     return _run_insurance_comparison(arguments)
+
+
+def _handle_generate_application_draft(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+    return _run_generate_application_draft(arguments)
 
 
 # ---------------------------------------------------------------------------
@@ -1263,11 +1315,103 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
     return "\n".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# State normalization
+# ---------------------------------------------------------------------------
+
+_STATE_CODES: dict[str, str] = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
+    "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN",
+    "mississippi": "MS", "missouri": "MO", "montana": "MT", "nebraska": "NE",
+    "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ",
+    "new mexico": "NM", "new york": "NY", "north carolina": "NC",
+    "north dakota": "ND", "ohio": "OH", "oklahoma": "OK", "oregon": "OR",
+    "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+    "vermont": "VT", "virginia": "VA", "washington": "WA",
+    "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
+}
+
+
+def _normalize_state(args: dict[str, Any]) -> None:
+    """Normalize state field to 2-letter code in-place."""
+    state = (args.get("state") or "").strip()
+    if not state:
+        return
+    if len(state) == 2:
+        args["state"] = state.upper()
+        return
+    code = _STATE_CODES.get(state.lower())
+    if code:
+        args["state"] = code
+
+
+# ---------------------------------------------------------------------------
+# Application draft generation
+# ---------------------------------------------------------------------------
+
+
+def _run_generate_application_draft(args: dict[str, Any]) -> str:
+    """Generate a pre-filled PDF application from workflow output."""
+    try:
+        from benefit_navigator.form_filler import generate_application
+
+        workflow_output = args.get("workflow_output", "")
+        if not workflow_output:
+            return (
+                "Missing workflow_output. Run navigate_benefits first, then pass "
+                "its full output as the workflow_output parameter."
+            )
+
+        _normalize_state(args)
+
+        path, form_type = generate_application(args, workflow_output)
+
+        if form_type == "official":
+            return (
+                f"Official state application form filled successfully.\n\n"
+                f"**Form:** Pre-filled government application\n"
+                f"**File:** `{path}`\n\n"
+                f"**What was pre-filled:**\n"
+                f"- State, ZIP code, county, and date\n"
+                f"- Eligible program checkboxes\n"
+                f"- Language preferences\n\n"
+                f"**Next steps for the applicant:**\n"
+                f"1. Open the PDF and review all pre-filled fields\n"
+                f"2. Fill in personal details (name, DOB, SSN, address)\n"
+                f"3. Complete remaining sections\n"
+                f"4. Sign, date, and submit to your local county office\n\n"
+                f"*This is a pre-filled DRAFT — review all fields before submitting.*"
+            )
+
+        return (
+            f"Application Preparation Worksheet generated.\n\n"
+            f"**File:** `{path}`\n\n"
+            f"No official fillable form is available for this state, so an "
+            f"Application Preparation Worksheet was generated instead. "
+            f"Use it as a reference when filling out the official application.\n\n"
+            f"**Next steps for the applicant:**\n"
+            f"1. Open the PDF and review all pre-filled information\n"
+            f"2. Visit the program-specific portals to access official forms\n"
+            f"3. Use the worksheet to fill in the official application\n"
+            f"4. Gather the documents listed in the checklist\n\n"
+            f"*This is a DRAFT — verify all information before submitting.*"
+        )
+    except Exception:
+        logger.exception("PDF generation failed")
+        return "Error generating application draft. Check server logs for details."
+
+
 # Populate dispatch table now that handlers are defined
 _TOOL_DISPATCH.update({
     "navigate_benefits": _handle_navigate_benefits,
     "check_eligibility": _handle_check_eligibility,
     "compare_insurance_plans": _handle_compare_insurance,
+    "generate_application_draft": _handle_generate_application_draft,
 })
 
 
