@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.mcp_server import (
+from benefits_navigator.mcp_server import (
     _PHASE_STREAM_PREFIX,
     _send_progress,
 )

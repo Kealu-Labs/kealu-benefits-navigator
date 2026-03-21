@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.mcp_server import _execute_tool
+from benefits_navigator.mcp_server import _execute_tool
 
 from ..conftest import MOCK_PHASE_OUTPUTS
 
@@ -122,7 +122,7 @@ def configure_failure(ctx):
 def run_navigate(ctx, tmp_path, monkeypatch):
     import subprocess as sp
 
-    import benefit_navigator.mcp_server as mcp_mod
+    import benefits_navigator.mcp_server as mcp_mod
 
     if ctx.workflow_should_fail:
         def mock_run(cmd, **kwargs):

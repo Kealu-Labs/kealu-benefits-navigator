@@ -459,7 +459,7 @@ def generate_application_pdf(
     Path to the generated PDF.
     """
     if output_dir is None:
-        output_dir = Path.home() / "Documents" / "benefit-applications"
+        output_dir = Path.home() / "Documents" / "benefits-applications"
 
     now = datetime.now(tz=timezone.utc)
     generated_at = now.strftime("%B %d, %Y at %H:%M UTC")
@@ -476,7 +476,7 @@ def generate_application_pdf(
     pdf.add_page(_build_documents_page(documents))
 
     zip_code = household.get("zip_code", "unknown")
-    filename = f"benefit-application-draft-{zip_code}-{timestamp}.pdf"
+    filename = f"benefits-application-draft-{zip_code}-{timestamp}.pdf"
     output_path = output_dir / filename
     pdf.write(output_path)
 

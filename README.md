@@ -84,7 +84,7 @@ In a production deployment, Vector's enterprise features add further controls: d
 
 ```
 kealu-benefits-navigator/
-├── src/benefit_navigator/     # MCP server (stdlib-only core, pypdf optional)
+├── src/benefits_navigator/     # MCP server (stdlib-only core, pypdf optional)
 │   ├── mcp_server.py          # MCP JSON-RPC 2.0 over stdio + tool dispatch
 │   ├── marketplace_api.py     # Healthcare.gov Marketplace API client (live plan data)
 │   ├── form_filler.py         # Official form filling (pypdf) with worksheet fallback
@@ -94,7 +94,7 @@ kealu-benefits-navigator/
 │   │   ├── IL-444-2378B.pdf   # Illinois IL444-2378B (Cash/Medical/SNAP combined)
 │   │   ├── NY-LDSS-4826-DD.pdf # New York LDSS-4826-DD (SNAP)
 │   │   └── PA-600.pdf         # Pennsylvania PA-600 (Cash/Healthcare/SNAP)
-│   ├── __main__.py            # python -m benefit_navigator
+│   ├── __main__.py            # python -m benefits_navigator
 │   └── __init__.py
 ├── workflows/                 # Kealu Vector workflow definitions
 │   └── benefits-navigator.yaml # 5-phase parallel workflow with quality gates
@@ -145,7 +145,7 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
   "mcpServers": {
     "benefits-navigator": {
       "command": "/bin/zsh",
-      "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f /path/to/kealu-benefits-navigator/.env ] && source /path/to/kealu-benefits-navigator/.env && set +a && exec /path/to/kealu-benefits-navigator/.venv/bin/python -m benefit_navigator"],
+      "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f /path/to/kealu-benefits-navigator/.env ] && source /path/to/kealu-benefits-navigator/.env && set +a && exec /path/to/kealu-benefits-navigator/.venv/bin/python -m benefits_navigator"],
       "cwd": "/path/to/kealu-benefits-navigator"
     }
   }

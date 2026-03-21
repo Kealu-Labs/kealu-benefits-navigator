@@ -9,14 +9,14 @@ from unittest.mock import MagicMock, patch
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.marketplace_api import (
+from benefits_navigator.marketplace_api import (
     format_plans_summary,
     limit_plans,
     resolve_county,
     search_plans,
     estimate_eligibility,
 )
-from benefit_navigator.mcp_server import (
+from benefits_navigator.mcp_server import (
     _execute_tool,
     _parse_household_for_api,
     _parse_income,
@@ -220,7 +220,7 @@ def given_api_key_unset(ctx, monkeypatch):
 @given("the marketplace API is unreachable")
 def given_api_unreachable(ctx, monkeypatch):
     import urllib.error
-    import benefit_navigator.marketplace_api as api_mod
+    import benefits_navigator.marketplace_api as api_mod
 
     def _raise(*args, **kwargs):
         raise urllib.error.URLError("Connection refused")
@@ -246,7 +246,7 @@ def given_mock_eligibility(ctx, aptc):
 
 @when(parsers.parse('the marketplace API resolves ZIP "{zip_code}"'))
 def resolve_zip(ctx, zip_code, monkeypatch):
-    import benefit_navigator.marketplace_api as api_mod
+    import benefits_navigator.marketplace_api as api_mod
 
     response = MOCK_COUNTY_RESPONSE if zip_code != "00000" else {"counties": []}
     monkeypatch.setattr(api_mod, "_get", lambda *a, **kw: response)
@@ -255,7 +255,7 @@ def resolve_zip(ctx, zip_code, monkeypatch):
 
 @when(parsers.parse("eligibility is estimated for income {income:d} with {n:d} people"))
 def estimate_elig(ctx, income, n, monkeypatch):
-    import benefit_navigator.marketplace_api as api_mod
+    import benefits_navigator.marketplace_api as api_mod
 
     response = MOCK_ELIGIBILITY_MEDICAID if income < 25000 else MOCK_ELIGIBILITY_RESPONSE
     monkeypatch.setattr(api_mod, "_post", lambda *a, **kw: response)
@@ -265,7 +265,7 @@ def estimate_elig(ctx, income, n, monkeypatch):
 
 @when(parsers.parse('plans are searched for ZIP "{zip_code}" with income {income:d}'))
 def search(ctx, zip_code, income, monkeypatch):
-    import benefit_navigator.marketplace_api as api_mod
+    import benefits_navigator.marketplace_api as api_mod
 
     monkeypatch.setattr(api_mod, "_post", lambda *a, **kw: _make_plan_search_result(5))
     ctx.plan_result = search_plans(income, [{"age": 30}, {"age": 4}, {"age": 9}], ctx.fips, ctx.state, zip_code)
@@ -273,7 +273,7 @@ def search(ctx, zip_code, income, monkeypatch):
 
 @when(parsers.parse('plans are searched for ZIP "{zip_code}" with income {income:d} filtering "{metal}"'))
 def search_filtered(ctx, zip_code, income, metal, monkeypatch):
-    import benefit_navigator.marketplace_api as api_mod
+    import benefits_navigator.marketplace_api as api_mod
 
     monkeypatch.setattr(api_mod, "_post", lambda *a, **kw: _make_plan_search_result(3, metal))
     ctx.plan_result = search_plans(
@@ -288,7 +288,7 @@ def format_results(ctx):
 
 @when(parsers.parse('compare_insurance_plans is called for ZIP "{zip_code}"'))
 def compare_with_api(ctx, zip_code, monkeypatch):
-    import benefit_navigator.marketplace_api as api_mod
+    import benefits_navigator.marketplace_api as api_mod
 
     monkeypatch.setattr(api_mod, "_get", lambda *a, **kw: MOCK_COUNTY_RESPONSE)
     monkeypatch.setattr(api_mod, "_post", lambda path, *a, **kw: (
@@ -315,7 +315,7 @@ def compare_with_fallback(ctx, zip_code, monkeypatch):
 
 @when(parsers.parse('check_eligibility is called for "{program}" with kvr fallback'))
 def check_elig_with_enrichment(ctx, program, monkeypatch):
-    import benefit_navigator.marketplace_api as api_mod
+    import benefits_navigator.marketplace_api as api_mod
     import subprocess as sp
 
     monkeypatch.setattr(api_mod, "_get", lambda *a, **kw: MOCK_COUNTY_RESPONSE)

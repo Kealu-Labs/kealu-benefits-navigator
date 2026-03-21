@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from benefit_navigator.mcp_server import (
+from benefits_navigator.mcp_server import (
     _check_intake_completeness,
     _execute_tool,
     _handle_request,
@@ -218,11 +218,11 @@ def mock_kvr(tmp_path, monkeypatch):
     mock = KvrMock()
 
     # Patch subprocess.run inside the mcp_server module
-    import benefit_navigator.mcp_server as mcp_mod
+    import benefits_navigator.mcp_server as mcp_mod
 
-    original_run = mcp_mod._run_benefit_navigator
+    original_run = mcp_mod._run_benefits_navigator
 
-    def patched_run_benefit_navigator(args, *, progress_token=None):
+    def patched_run_benefits_navigator(args, *, progress_token=None):
         import subprocess as sp
 
         monkeypatch.setattr(sp, "run", mock._run)
@@ -230,6 +230,6 @@ def mock_kvr(tmp_path, monkeypatch):
         monkeypatch.setattr("pathlib.Path.cwd", lambda: tmp_path)
         return original_run(args, progress_token=progress_token)
 
-    monkeypatch.setattr(mcp_mod, "_run_benefit_navigator", patched_run_benefit_navigator)
+    monkeypatch.setattr(mcp_mod, "_run_benefits_navigator", patched_run_benefits_navigator)
 
     return mock

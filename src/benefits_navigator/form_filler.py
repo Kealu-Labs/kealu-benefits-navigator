@@ -244,7 +244,7 @@ def fill_official_form(
         return None
 
     if output_dir is None:
-        output_dir = Path.home() / "Documents" / "benefit-applications"
+        output_dir = Path.home() / "Documents" / "benefits-applications"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     reader = PdfReader(str(template_path))
@@ -284,7 +284,7 @@ def fill_official_form(
 
     timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
     zip_code = form_data.get("home_zip", "unknown")
-    filename = f"benefit-application-{state}-{zip_code}-{timestamp}.pdf"
+    filename = f"benefits-application-{state}-{zip_code}-{timestamp}.pdf"
     output_path = output_dir / filename
     writer.write(str(output_path))
 
@@ -316,7 +316,7 @@ def generate_application(
         return path, "official"
 
     # Fall back to worksheet
-    from benefit_navigator.pdf_generator import generate_application_pdf
+    from benefits_navigator.pdf_generator import generate_application_pdf
 
     path = generate_application_pdf(args, workflow_output, output_dir)
     return path, "worksheet"

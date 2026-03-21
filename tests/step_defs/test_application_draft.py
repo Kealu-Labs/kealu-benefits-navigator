@@ -7,8 +7,8 @@ from pathlib import Path
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefit_navigator.mcp_server import _execute_tool
-from benefit_navigator.pdf_generator import generate_application_pdf
+from benefits_navigator.mcp_server import _execute_tool
+from benefits_navigator.pdf_generator import generate_application_pdf
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -143,10 +143,10 @@ def generate_and_read(ctx):
 @then("a PDF file is created on disk")
 def check_file_exists(ctx):
     # The tool result contains a file path (either official or worksheet)
-    assert "benefit-application" in ctx.result
+    assert "benefits-application" in ctx.result
     # Extract path from result
     for line in ctx.result.split("\n"):
-        if "benefit-application" in line and ".pdf" in line:
+        if "benefits-application" in line and ".pdf" in line:
             # Path is between backticks
             start = line.find("`") + 1
             end = line.rfind("`")
@@ -175,7 +175,7 @@ def check_page_count(ctx):
 @then("the tool result mentions the file path")
 def check_path_in_result(ctx):
     assert ".pdf" in ctx.result
-    assert "benefit-application" in ctx.result
+    assert "benefits-application" in ctx.result
 
 
 @then("the tool result includes review instructions")

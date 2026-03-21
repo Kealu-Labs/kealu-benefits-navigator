@@ -16,7 +16,7 @@ dev = [
 ]
 
 [project.scripts]
-benefits-navigator = "benefit_navigator.mcp_server:main"
+benefits-navigator = "benefits_navigator.mcp_server:main"
 
 [tool.pytest.ini_options]
 markers = [

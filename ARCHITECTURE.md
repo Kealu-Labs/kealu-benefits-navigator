@@ -10,7 +10,7 @@
                              │ MCP (JSON-RPC 2.0 over stdio)
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  MCP Server (benefit_navigator)                              stdlib-only   │
+│  MCP Server (benefits_navigator)                              stdlib-only   │
 │                                                                             │
 │  ┌──────────────┐  ┌───────────────────┐  ┌──────────────────────────────┐ │
 │  │  Tool Router  │  │  Tiered Intake    │  │  Household Parser            │ │
@@ -71,7 +71,7 @@
 
 ```
 kealu-benefits-navigator/          # Domain project — owns all healthcare logic
-├── src/benefit_navigator/        # Runtime code (MCP server + API client)
+├── src/benefits_navigator/        # Runtime code (MCP server + API client)
 ├── workflows/                    # Vector workflow YAML (declarative)
 ├── personas/community/           # Agent behavior definitions (markdown)
 ├── contexts/community/           # Domain knowledge (FPL tables, program data)

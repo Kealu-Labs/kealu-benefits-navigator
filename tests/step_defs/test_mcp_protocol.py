@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pytest_bdd import parsers, scenario, then, when
 
-from benefit_navigator.mcp_server import _handle_request
+from benefits_navigator.mcp_server import _handle_request
 
 # ---------------------------------------------------------------------------
 # Scenarios

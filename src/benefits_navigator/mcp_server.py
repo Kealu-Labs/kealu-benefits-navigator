@@ -9,7 +9,7 @@ Example ``mcp_config.json`` entry::
       "mcpServers": {
         "benefits-navigator": {
           "command": "/bin/zsh",
-          "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f .env ] && source .env && set +a && exec .venv/bin/python -m benefit_navigator"],
+          "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f .env ] && source .env && set +a && exec .venv/bin/python -m benefits_navigator"],
           "cwd": "/path/to/kealu-benefits-navigator"
         }
       }
@@ -388,7 +388,7 @@ def _handle_navigate_benefits(arguments: dict[str, Any], *, progress_token: str 
         missing = _check_intake_completeness(arguments)
         if missing:
             return missing
-    return _run_benefit_navigator(arguments, progress_token=progress_token)
+    return _run_benefits_navigator(arguments, progress_token=progress_token)
 
 
 def _handle_check_eligibility(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
@@ -694,7 +694,7 @@ def _format_intake_response(
 
 
 
-def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _run_benefits_navigator(args: dict[str, Any], *, progress_token: str | None = None) -> str:
     """Run the full benefits-navigator workflow with optional progress streaming."""
     try:
         kvr = _resolve_kvr()
@@ -904,7 +904,7 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
     # Try to enrich with real CMS Marketplace data
     if os.environ.get("CMS_API_KEY") and args.get("household_profile"):
         try:
-            from benefit_navigator.marketplace_api import (
+            from benefits_navigator.marketplace_api import (
                 estimate_eligibility,
                 get_state_medicaid,
                 resolve_county,
@@ -1019,7 +1019,7 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
         return _run_insurance_comparison_fallback(args)
 
     try:
-        from benefit_navigator.marketplace_api import (
+        from benefits_navigator.marketplace_api import (
             MissingAPIKeyError as _MissingAPIKeyError,
             estimate_eligibility,
             format_plans_summary,
@@ -1358,7 +1358,7 @@ def _normalize_state(args: dict[str, Any]) -> None:
 def _run_generate_application_draft(args: dict[str, Any]) -> str:
     """Generate a pre-filled PDF application from workflow output."""
     try:
-        from benefit_navigator.form_filler import generate_application
+        from benefits_navigator.form_filler import generate_application
 
         workflow_output = args.get("workflow_output", "")
         if not workflow_output:
