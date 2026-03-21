@@ -8,3 +8,5 @@ build/
 *.egg
 .ruff_cache/
 *.swp
+.env
+.worktrees/

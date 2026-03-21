@@ -600,10 +600,76 @@ def _run_benefit_navigator(args: dict[str, Any]) -> str:
 
 
 def _run_eligibility_check(args: dict[str, Any]) -> str:
-    """Run a single-phase eligibility check via kvr assist."""
+    """Run eligibility check, enriched with real CMS data when available."""
+    import os
     import shutil
     import subprocess
 
+    enrichment = ""
+
+    # Try to enrich with real CMS Marketplace data
+    if os.environ.get("CMS_API_KEY") and args.get("household_profile"):
+        try:
+            from benefit_navigator.marketplace_api import (
+                estimate_eligibility,
+                get_state_medicaid,
+                resolve_county,
+            )
+
+            zip_code = args.get("zip_code", "")
+            if not zip_code:
+                # Try to extract from profile
+                import re
+
+                m = re.search(r"\b(\d{5})\b", args.get("household_profile", ""))
+                if m:
+                    zip_code = m.group(1)
+
+            if zip_code:
+                county_data = resolve_county(zip_code)
+                counties = county_data.get("counties", [])
+                if counties:
+                    county = counties[0]
+                    fips = county["fips"]
+                    state = county["state"]
+
+                    people = _parse_household_for_api(args)
+                    income = _parse_income(args)
+
+                    elig = estimate_eligibility(income, people, state, fips, zip_code)
+                    estimates = elig.get("estimates", [{}])
+                    if estimates:
+                        est = estimates[0]
+                        lines = ["## CMS Marketplace Data (Live)\n"]
+                        lines.append(f"- **APTC (tax credit):** ${est.get('aptc', 0):.2f}/month")
+                        csr = est.get("csr", "none")
+                        if csr and csr != "none":
+                            lines.append(f"- **Cost-sharing reduction:** {csr}")
+                        if est.get("is_medicaid_chip"):
+                            lines.append("- **Medicaid/CHIP:** Household likely qualifies")
+                        fpl_pct = est.get("fpl", 0)
+                        if fpl_pct:
+                            lines.append(f"- **Federal Poverty Level:** {fpl_pct:.1f}%")
+                        lines.append("")
+
+                        # Get state Medicaid thresholds
+                        try:
+                            medicaid = get_state_medicaid(state)
+                            if medicaid:
+                                lines.append(f"### {state} Medicaid Thresholds")
+                                for group in medicaid.get("poverty_levels", []):
+                                    lines.append(
+                                        f"- {group.get('group', 'Unknown')}: {group.get('percentage', 'N/A')}% FPL"
+                                    )
+                                lines.append("")
+                        except Exception:
+                            pass
+
+                        enrichment = "\n".join(lines) + "\n---\n\n"
+        except Exception:
+            logger.debug("CMS enrichment failed for eligibility check", exc_info=True)
+
+    # Always run kvr assist for the detailed analysis
     try:
         kvr = shutil.which("kvr") or "/Users/sempi/.local/bin/kvr"
         task = (
@@ -617,14 +683,72 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             text=True,
             timeout=120,
         )
-        return result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
+        assist_output = result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
+        return enrichment + assist_output
     except Exception as e:
         logger.exception("eligibility check failed")
-        return f"Error checking eligibility: {e}"
+        return enrichment + f"Error checking eligibility: {e}"
 
 
 def _run_insurance_comparison(args: dict[str, Any]) -> str:
-    """Run insurance comparison via kvr assist."""
+    """Run insurance comparison using Healthcare.gov Marketplace API for real plan data.
+
+    Falls back to kvr assist if the API is unavailable or CMS_API_KEY is not set.
+    """
+    import os
+
+    zip_code = args.get("zip_code", "")
+    if not zip_code:
+        return "ZIP code is required for insurance plan comparison."
+
+    # If no API key, fall back to kvr assist
+    if not os.environ.get("CMS_API_KEY"):
+        return _run_insurance_comparison_fallback(args)
+
+    try:
+        from benefit_navigator.marketplace_api import (
+            MissingAPIKeyError as _MissingAPIKeyError,
+            estimate_eligibility,
+            format_plans_summary,
+            resolve_county,
+            search_plans,
+        )
+
+        # Step 1: Resolve ZIP to county
+        county_data = resolve_county(zip_code)
+        counties = county_data.get("counties", [])
+        if not counties:
+            return f"No marketplace data found for ZIP code {zip_code}."
+        county = counties[0]
+        fips = county["fips"]
+        state = county["state"]
+
+        # Step 2: Parse household into API format
+        people = _parse_household_for_api(args)
+        income = _parse_income(args)
+
+        # Step 3: Get eligibility estimates (APTC, CSR)
+        eligibility = None
+        try:
+            eligibility = estimate_eligibility(income, people, state, fips, zip_code)
+        except Exception:
+            logger.warning("Eligibility estimate failed — continuing without APTC", exc_info=True)
+
+        # Step 4: Search real plans
+        result = search_plans(income, people, fips, state, zip_code)
+
+        return format_plans_summary(result, eligibility)
+
+    except _MissingAPIKeyError:
+        return _run_insurance_comparison_fallback(args)
+    except Exception as e:
+        logger.exception("Marketplace API call failed — falling back to kvr assist")
+        fallback = _run_insurance_comparison_fallback(args)
+        return f"*Note: Live marketplace data unavailable ({e}). Showing AI-generated estimates:*\n\n{fallback}"
+
+
+def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
+    """Fallback: run insurance comparison via kvr assist."""
     import shutil
     import subprocess
 
@@ -646,8 +770,93 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
         )
         return result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
     except Exception as e:
-        logger.exception("insurance comparison failed")
+        logger.exception("insurance comparison fallback failed")
         return f"Error comparing insurance plans: {e}"
+
+
+def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
+    """Parse household_profile text into CMS API people list."""
+    import re
+
+    profile = args.get("household_profile", "")
+    people: list[dict[str, Any]] = []
+
+    # Extract ages from profile text
+    age_patterns = [
+        r"ages?\s+(\d+)\s+and\s+(\d+)",  # "ages 4 and 9"
+        r"(\d+)\s+and\s+(\d+)\s+year",  # "4 and 9 year old"
+        r"age\s+(\d+)",  # "age 35"
+        r"(\d+)\s*(?:yo|y/o|year.?old)",  # "35yo", "35 year old"
+    ]
+
+    child_ages = []
+    adult_age = 30  # default
+
+    for pattern in age_patterns:
+        matches = re.findall(pattern, profile, re.IGNORECASE)
+        for match in matches:
+            if isinstance(match, tuple):
+                for age_str in match:
+                    age = int(age_str)
+                    if age < 19:
+                        child_ages.append(age)
+                    else:
+                        adult_age = age
+            else:
+                age = int(match)
+                if age < 19:
+                    child_ages.append(age)
+                else:
+                    adult_age = age
+
+    # Primary applicant
+    people.append({"age": adult_age, "gender": "Female", "uses_tobacco": False})
+
+    # Children
+    for age in child_ages:
+        people.append({"age": age, "gender": "Female", "uses_tobacco": False})
+
+    # If "family of N" or "household of N" mentioned, pad to that size
+    size_match = re.search(r"(?:family|household)\s+of\s+(\d+)", profile, re.IGNORECASE)
+    if size_match:
+        target = int(size_match.group(1))
+        while len(people) < target:
+            people.append({"age": 30, "gender": "Female", "uses_tobacco": False})
+
+    # If we only have 1 person but "kids" or "children" are mentioned, add defaults
+    kid_match = re.search(r"(\d+)\s*kid|(\d+)\s*child", profile, re.IGNORECASE)
+    if kid_match and not child_ages:
+        n_kids = int(kid_match.group(1) or kid_match.group(2))
+        for _ in range(n_kids):
+            people.append({"age": 8, "gender": "Female", "uses_tobacco": False})
+
+    return people
+
+
+def _parse_income(args: dict[str, Any]) -> int:
+    """Parse income from args, with fallback extraction from household_profile."""
+    import re
+
+    profile = args.get("household_profile", "")
+
+    # Try explicit patterns
+    patterns = [
+        r"\$\s*([\d,]+)\s*k?\s*/?\s*(?:yr|year|annual)",  # $42k/yr, $42,000/year
+        r"\$\s*([\d,]+)\s*k\b",  # $42k
+        r"\$\s*([\d,]+)\b",  # $42000
+        r"([\d,]+)\s*(?:income|salary|earn)",  # 42000 income
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, profile, re.IGNORECASE)
+        if match:
+            raw = match.group(1).replace(",", "")
+            income = int(raw)
+            # If it looks like shorthand (42 = $42k), multiply
+            if income < 1000:
+                income *= 1000
+            return income
+
+    return 30000  # conservative default for benefit eligibility
 
 
 def _collect_output(result: dict) -> str:

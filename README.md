@@ -85,7 +85,8 @@ In a production deployment, Vector's enterprise features add further controls: d
 ```
 kealu-benefit-navigator/
 ├── src/benefit_navigator/     # MCP server (stdlib-only, zero dependencies)
-│   ├── mcp_server.py          # MCP JSON-RPC 2.0 over stdio
+│   ├── mcp_server.py          # MCP JSON-RPC 2.0 over stdio + tool dispatch
+│   ├── marketplace_api.py     # Healthcare.gov Marketplace API client (live plan data)
 │   ├── __main__.py            # python -m benefit_navigator
 │   └── __init__.py
 ├── workflows/                 # Kealu Vector workflow definitions
@@ -96,14 +97,20 @@ kealu-benefit-navigator/
 │   ├── evidence-verifier.md
 │   ├── eligibility-analyst.md
 │   └── action-planner.md
-└── contexts/community/        # Domain knowledge contexts
-    └── benefit-navigator.md   # FPL tables, program reference, quality standards
+├── contexts/community/        # Domain knowledge contexts
+│   └── benefit-navigator.md   # FPL tables, program reference, quality standards
+├── tests/                     # 59 BDD tests (pytest-bdd)
+│   ├── features/              # Gherkin scenarios
+│   └── step_defs/             # Step implementations
+├── .env.example               # CMS API key template
+└── .env                       # Your API key (gitignored)
 ```
 
 ## Prerequisites
 
 - Python 3.11+
 - [Kealu Vector](https://kealu.com) CLI (`kvr`) installed and on PATH
+- (Optional) [CMS Marketplace API key](https://developer.cms.gov/marketplace-api/key-request.html) for live insurance plan data
 
 ## Setup
 
@@ -114,6 +121,10 @@ source .venv/bin/activate
 
 # Install in development mode
 pip install -e .
+
+# Configure CMS API key (optional — enables live Healthcare.gov plan data)
+cp .env.example .env
+# Edit .env and add your CMS_API_KEY
 ```
 
 ## Usage
@@ -150,16 +161,28 @@ kvr run benefit-navigator \
 
 ## Tools Exposed via MCP
 
-| Tool | Description |
-|------|-------------|
-| `navigate_benefits` | Full 5-phase analysis with guided intake flow |
-| `check_eligibility` | Single-program eligibility check |
-| `compare_insurance_plans` | Multi-channel insurance comparison |
+| Tool | Data source | Description |
+|------|-------------|-------------|
+| `navigate_benefits` | Vector 5-phase workflow | Full analysis with guided intake flow |
+| `check_eligibility` | CMS API + Vector | Single-program eligibility check, enriched with live APTC/FPL/Medicaid data |
+| `compare_insurance_plans` | CMS Marketplace API | Real plan names, premiums, deductibles, and subsidy calculations from Healthcare.gov |
+
+When `CMS_API_KEY` is configured, `compare_insurance_plans` returns real marketplace plans with APTC-adjusted premiums and `check_eligibility` includes live CMS data (FPL percentage, APTC amount, state Medicaid thresholds). Without the key, both fall back gracefully to Vector's AI-powered analysis.
+
+### Healthcare.gov Marketplace API
+
+The CMS Marketplace API provides:
+- **Real plan search** — actual plan names, issuers, premiums, deductibles, and out-of-pocket maximums for any US ZIP code
+- **APTC subsidy calculation** — household-specific tax credit amounts based on income and FPL
+- **CSR eligibility** — cost-sharing reduction levels that lower deductibles on Silver plans
+- **Medicaid/CHIP screening** — flags households that may qualify before they spend time on marketplace plans
+- **Provider/drug coverage** — verify if specific doctors and medications are covered by each plan
 
 ## Technologies
 
 - **Gemini** — Powers all 5 specialized agents through Kealu Vector's orchestration
 - **Google Antigravity** — Agent-first IDE providing the conversational interface via MCP
+- **Healthcare.gov Marketplace API** — Live insurance plan data, subsidy calculations, and eligibility estimates from CMS
 - **MCP (Model Context Protocol)** — stdio-based JSON-RPC 2.0 connecting Antigravity to the benefit navigator
 - **Kealu Vector** — Enterprise workflow orchestrator with parallel phases, quality gates, persona-driven agents, and decision logging
 - **Google ADK** — Agent Development Kit for agent-to-agent communication
