@@ -87,6 +87,7 @@ kealu-benefit-navigator/
 ├── src/benefit_navigator/     # MCP server (stdlib-only, zero dependencies)
 │   ├── mcp_server.py          # MCP JSON-RPC 2.0 over stdio + tool dispatch
 │   ├── marketplace_api.py     # Healthcare.gov Marketplace API client (live plan data)
+│   ├── pdf_generator.py       # Zero-dependency PDF application draft generator
 │   ├── __main__.py            # python -m benefit_navigator
 │   └── __init__.py
 ├── workflows/                 # Kealu Vector workflow definitions
@@ -99,7 +100,7 @@ kealu-benefit-navigator/
 │   └── action-planner.md
 ├── contexts/community/        # Domain knowledge contexts
 │   └── benefit-navigator.md   # FPL tables, program reference, quality standards
-├── tests/                     # 67 BDD tests (pytest-bdd)
+├── tests/                     # 71 BDD tests (pytest-bdd)
 │   ├── features/              # Gherkin scenarios
 │   └── step_defs/             # Step implementations
 ├── .env.example               # CMS API key template
@@ -166,8 +167,11 @@ kvr run benefit-navigator \
 | `navigate_benefits` | Vector 5-phase workflow | Full analysis with guided intake flow |
 | `check_eligibility` | CMS API + Vector | Single-program eligibility check, enriched with live APTC/FPL/Medicaid data |
 | `compare_insurance_plans` | CMS Marketplace API | Real plan names, premiums, deductibles, and subsidy calculations from Healthcare.gov |
+| `generate_application_draft` | Local PDF generation | Pre-filled application draft PDF with eligible programs, household data, and document checklist |
 
 When `CMS_API_KEY` is configured, `compare_insurance_plans` returns real marketplace plans with APTC-adjusted premiums and `check_eligibility` includes live CMS data (FPL percentage, APTC amount, state Medicaid thresholds). Without the key, both fall back gracefully to Vector's AI-powered analysis.
+
+After analysis, `generate_application_draft` produces a pre-filled PDF application draft — the system doesn't just advise, it takes action. The PDF pre-fills known fields (income, household, eligible programs, required documents) and leaves sensitive fields (SSN, DOB) blank for manual completion. Generated using raw PDF 1.4 spec with zero dependencies.
 
 ### Healthcare.gov Marketplace API
 

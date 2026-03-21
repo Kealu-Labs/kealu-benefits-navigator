@@ -70,6 +70,19 @@ Paste each prompt after the previous response completes.
 - Vector analysis cross-references against program-specific rules
 - Two data sources (live API + AI analysis) producing a verified answer
 
+### Prompt 5 — Application Draft (PDF Generation)
+
+> Can you generate a draft application for the programs I qualify for?
+
+**What happens:** Calls `generate_application_draft` with the household profile and workflow output. Generates a pre-filled PDF with applicant info, eligible programs, household members, and a required documents checklist. Saves to disk and returns the file path.
+
+**What to highlight:**
+- **AI took action** — didn't just advise, produced a tangible artifact
+- PDF pre-fills known fields (income, ZIP, household size, eligible programs)
+- Sensitive fields (SSN, DOB) left blank for manual completion
+- Documents checklist extracted from the workflow analysis
+- Zero dependencies — PDF generated using raw PDF 1.4 spec, no pip packages
+
 ## Key Talking Points
 
 - **$80B problem** — that's how much goes unclaimed in US government benefits annually
@@ -77,5 +90,6 @@ Paste each prompt after the previous response completes.
 - **Adversarial verification** — a dedicated agent fact-checks the other agents' work
 - **5 specialized Gemini agents** orchestrated in parallel by Kealu Vector
 - **Zero dependencies** — MCP server is stdlib-only Python, no pip packages needed
-- **67 BDD tests** — full coverage of intake flow, MCP protocol, tool routing, workflow output, marketplace API, and progress streaming
+- **Takes action** — generates a pre-filled PDF application draft the user can review and submit
+- **71 BDD tests** — full coverage of intake flow, MCP protocol, tool routing, workflow output, marketplace API, progress streaming, and PDF generation
 - **7 ADRs** — architecture decisions documented in [ARCHITECTURE.md](ARCHITECTURE.md)

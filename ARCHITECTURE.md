@@ -29,6 +29,9 @@
 │  │                                                                      │   │
 │  │  compare_plans ──────▶ CMS plan search API                           │   │
 │  │                        (fallback: kvr assist)                        │   │
+│  │                                                                      │   │
+│  │  generate_draft ────▶ PDF generator (stdlib-only)                    │   │
+│  │                        (pre-filled application draft)                │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 └────────────┬──────────────────────────────────────┬─────────────────────────┘
              │                                      │
@@ -148,7 +151,7 @@ kealu-agents-workforce/           # Vector monorepo — generic orchestrator
 **Decision:** Use pytest-bdd with Gherkin feature files. Mock `subprocess.run` and `urllib` at the boundary. Test fixtures use realistic Texas-specific data (Harris County, 77001, $42k income, household of 3) that exercises real eligibility logic.
 
 **Consequences:**
-- 67 tests run in <0.2 seconds — fast enough for pre-commit
+- 71 tests run in <0.2 seconds — fast enough for pre-commit
 - Feature files serve as executable documentation of system behavior
 - Mock data mirrors real CMS API response structure — catches deserialization bugs
 - No live API dependency for CI — tests pass without `CMS_API_KEY`
