@@ -1,0 +1,22 @@
+[project]
+name = "kealu-benefit-navigator"
+version = "0.1.0"
+description = "Benefit & Insurance Navigator — multi-agent system that discovers government benefits and insurance plans, validates eligibility, and produces enrollment action plans"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-bdd>=7.0",
+]
+
+[project.scripts]
+benefit-navigator = "benefit_navigator.mcp_server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

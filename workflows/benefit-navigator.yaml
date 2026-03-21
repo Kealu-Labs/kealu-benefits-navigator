@@ -1,0 +1,756 @@
+
+name: benefit-navigator
+description: "Discover government benefits and insurance options, validate eligibility, and produce a prioritized enrollment action plan"
+
+variables:
+  # --- Core demographics ---
+  household_profile: ""   # Free-text description: income, household size, ages, employment status, special circumstances (veteran, disability, etc.)
+  state: ""               # US state (e.g., "Texas")
+  county: ""              # County (e.g., "Harris County")
+  zip_code: ""            # Zip code for insurance marketplace lookup (required for plan matching)
+  income_type: ""         # W-2 employee | self-employed | gig/1099 | mixed | unemployed — affects MAGI calculation
+
+  # --- Health profile (drives plan matching) ---
+  medications: ""         # Current medications: drug name, dosage, frequency (e.g., "Metformin 500mg 2x/day, Lisinopril 10mg daily")
+  providers: ""           # Current doctors/providers to keep in-network (name, practice, specialty)
+  health_needs: ""        # Chronic conditions, anticipated procedures, pregnancy plans, mental health needs
+  usage_pattern: ""       # Estimated annual usage: PCP visits, specialist visits, ER visits, urgent care visits (e.g., "8 PCP, 2 specialist, 1 ER, 2 urgent care")
+
+  # --- Coverage preferences ---
+  current_coverage: ""    # Currently insured? Through what? COBRA eligible? Reason for coverage gap?
+  premium_budget: ""      # Maximum monthly premium budget (e.g., "$300/month" or "as low as possible")
+  network_preference: ""  # HMO acceptable? Need PPO/EPO? Specific referral concerns?
+  pharmacy_preference: "" # Preferred pharmacy (CVS, Walgreens, mail-order, etc.)
+
+  # --- Financial details ---
+  existing_benefits: ""   # Benefits already receiving (SNAP, Medicaid, WIC, etc.) — avoid duplicate applications, check categorical eligibility
+  assets: ""              # Savings, property — needed for programs with asset tests (some states' SNAP, Medicaid)
+  expected_income_change: "" # Anticipated raise, job change, or income reduction — for income cliff planning
+
+required_variables:
+  - household_profile
+  - zip_code
+
+evaluator:
+  persona: operations/phase-evaluator
+  complexity: standard
+
+readonly: true
+parallel_phases: true
+max_parallel_phases: 2
+
+phases:
+  # ── Phase 1: Benefits Research (parallel with Phase 2) ──────────────
+  - name: benefits-research
+    depends_on: []
+    description: "Discover federal, state, and local benefit programs"
+    agent: community/benefits-researcher
+    complexity: complex
+
+    context:
+      - community/benefit-navigator
+    template: |
+      ## STATUS: COMPLETE
+      ## SUMMARY: <!-- FILL: e.g., "14 programs identified across 5 categories" -->
+
+      ## Household Profile
+      <!-- FILL: parsed profile with income, FPL %, household size, ages, location, employment, special circumstances -->
+
+      ## Federal Poverty Level Calculation
+      <!-- FILL: income, household size, FPL percentage, year's FPL guidelines used -->
+
+      ## Programs Found
+
+      ### Healthcare
+      <!-- FILL: table with Program (state-specific name) | Agency | Eligibility Summary | Income Limit ($) | Est. Monthly Value | Source URL | Enrollment Window -->
+
+      ### Food Assistance
+      <!-- FILL: table with same columns -->
+
+      ### Housing
+      <!-- FILL: table with same columns -->
+
+      ### Utilities & Energy
+      <!-- FILL: table with same columns -->
+
+      ### Childcare & Education
+      <!-- FILL: table with same columns -->
+
+      ### Workforce & Training
+      <!-- FILL: table with same columns -->
+
+      ### Other
+      <!-- FILL: table with same columns, or "None identified" -->
+
+      ## Total Estimated Value
+      <!-- FILL: "Total estimated annual value of all identified programs: $XX,XXX" -->
+
+      ## Income Cliff Warnings
+      <!-- FILL: programs where user is within 10% of income threshold -->
+
+      ## Time-Sensitive Programs
+      <!-- FILL: programs with approaching deadlines or limited enrollment windows -->
+    prompt: |
+      # Discover Benefit Programs
+
+      A template has been created in STATUS.md. You MUST replace every `<!-- FILL: ... -->` placeholder.
+      Keep all section headers exactly as they are. Only replace the placeholder comments.
+
+      **Step 1:** Parse the household profile and calculate FPL percentage:
+      - Extract: income, household size, ages of all members, state, county, employment status, special circumstances
+      - Calculate FPL % using current HHS poverty guidelines for the household size
+      - Example: family of 3, $42,000 income = ~213% FPL (2025 guidelines: $19,720 base + $4,480 per person)
+
+      **Step 2:** Search federal benefit programs. Check each agency for applicable programs:
+      - HHS: Medicaid, CHIP (check state expansion status), ACA subsidies
+      - USDA: SNAP, WIC (children under 5, pregnant women)
+      - HUD: Section 8, public housing, HOME program
+      - DOL: Workforce training, unemployment
+      - SSA: SSI, SSDI (if applicable)
+      - HHS/ACF: TANF, childcare assistance (CCDF), Head Start
+      - DOE/HHS: LIHEAP (energy assistance), Weatherization
+
+      **Step 3:** Search state-specific programs for {{ state }}:
+      - State Medicaid program (name varies by state)
+      - State CHIP program
+      - State utility assistance beyond LIHEAP
+      - State housing programs
+      - State workforce/training programs
+
+      **Step 4:** Search county/city programs for {{ county }}:
+      - Local community action agencies
+      - County health department programs
+      - Local housing authority programs
+
+      **Step 5:** For each program found, document:
+      - Program name and administering agency
+      - Specific income limits as dollar amounts for this household size
+      - Application URL (must be .gov or official program site)
+      - Enrollment window (open/closed/seasonal with dates)
+      - Required documents
+
+      **Step 6:** Flag income cliff warnings and time-sensitive programs.
+
+      **Step 7:** Replace every `<!-- FILL: ... -->` placeholder in STATUS.md.
+
+      ---
+
+      ## Input Data
+
+      **Household Profile:** {{ household_profile }}
+      **State:** {{ state }}
+      **County:** {{ county }}
+      **Zip Code:** {{ zip_code }}
+      **Income Type:** {{ income_type }}
+      **Health Needs:** {{ health_needs }}
+      **Current Coverage:** {{ current_coverage }}
+      **Existing Benefits:** {{ existing_benefits }}
+      **Assets:** {{ assets }}
+      **Expected Income Change:** {{ expected_income_change }}
+
+      {% if verification_corrections %}
+      ---
+      ## CORRECTIONS FROM EVIDENCE VERIFIER (use these corrected values)
+
+      {{ verification_corrections }}
+      {% endif %}
+
+    quality_gate:
+      type: all
+      gates:
+        - type: contains
+          required:
+            - "## Programs Found"
+            - "### Healthcare"
+            - "## Federal Poverty Level Calculation"
+            - "## Total Estimated Value"
+            - "## STATUS: COMPLETE"
+        - type: not_contains
+          forbidden:
+            - "<!-- FILL:"
+            - "## BLOCKED"
+            - "check your local"
+            - "contact your state"
+
+  # ── Phase 2: Insurance Research (parallel with Phase 1) ─────────────
+  - name: insurance-research
+    depends_on: []
+    description: "Research insurance options across all channels"
+    agent: community/insurance-analyst
+    complexity: complex
+
+    context:
+      - community/benefit-navigator
+    template: |
+      ## STATUS: COMPLETE
+      ## SUMMARY: <!-- FILL: e.g., "12 plans compared across 4 channels" -->
+
+      ## Subsidy Eligibility
+      <!-- FILL: APTC amount, CSR eligibility, FPL %, Medicaid gap status -->
+
+      ## ACA Marketplace Plans
+      <!-- FILL: table with Plan Name | Metal Tier | Premium (Before/After Subsidy) | Deductible | OOP Max | Network Type | PCP Copay | Specialist Copay | Urgent Care | ER Copay | Generic Rx | Brand Rx -->
+
+      ## Off-Marketplace Carrier Plans
+      <!-- FILL: table with same columns (no subsidy column), or "Not materially different from marketplace options in this area" -->
+
+      ## Short-Term / Gap Insurance
+      <!-- FILL: table with Plan | Premium | Duration | Deductible | Key Exclusions -->
+      ### Coverage Limitations Warning
+      <!-- FILL: explicit list of what short-term plans do NOT cover vs ACA -->
+
+      ## Health Sharing Ministries
+      <!-- FILL: table with Organization | Monthly Share | Annual Unshared Amount | Key Limitations -->
+      ### Not Insurance Disclaimer
+      <!-- FILL: explanation that these are NOT insurance and what that means -->
+
+      ## Employer Arrangements (ICHRA/QSEHRA)
+      <!-- FILL: applicability assessment, or "Not applicable — user has no employer coverage option" -->
+
+      ## Real-World Cost Scenarios
+      <!-- FILL: table with Plan | Healthy Adult (2 PCP + 1 specialist + 4 Rx) | Family w/ Kids (8 PCP + 2 urgent + 1 ER + 12 Rx) | Chronic Condition (12 specialist + 12 lab + 12 brand Rx) | Worst Case (premiums + OOP max) -->
+      ### Scenario Winner Analysis
+      <!-- FILL: For each scenario, state which plan wins and by how much, with the copay math shown -->
+
+      ## Emergency Services Comparison
+      <!-- FILL: table with Plan | ER Copay | Ambulance | Out-of-Network ER Policy | Waived if Admitted? -->
+
+      ## Formulary Match
+      <!-- FILL: table with Medication | Plan A (Tier/Copay) | Plan B (Tier/Copay) | Plan C (Tier/Copay) — or "No medications specified" -->
+
+      ## Provider Network Match
+      <!-- FILL: table with Provider | Specialty | Plan A (In/Out) | Plan B (In/Out) | Plan C (In/Out) — or "No providers specified" -->
+
+      ## Coverage Per Household Member
+      <!-- FILL: table with Member | Recommended Channel | Plan | Reason -->
+    prompt: |
+      # Research Insurance Options
+
+      A template has been created in STATUS.md. You MUST replace every `<!-- FILL: ... -->` placeholder.
+      Keep all section headers exactly as they are. Only replace the placeholder comments.
+
+      **Step 1:** Calculate subsidy eligibility:
+      - Calculate FPL percentage independently from household income, size, and the FPL tables in the benefit-navigator context (this phase runs in parallel with benefits research, so do NOT rely on their calculation)
+      - Determine APTC (Advanced Premium Tax Credit) amount
+      - Check CSR (Cost-Sharing Reduction) eligibility (100-250% FPL for Silver plans)
+      - Check for Medicaid gap (below 100% FPL in non-expansion state)
+
+      **Step 2:** Research ACA Marketplace plans for zip code {{ zip_code }}:
+      - Search healthcare.gov marketplace data for this specific zip code, ages, and income
+      - Include top 2-3 plans per metal tier (Bronze, Silver, Gold)
+      - Show premiums BEFORE and AFTER subsidy
+      - Note CSR-enhanced Silver plans if eligible
+      - **For each plan, get copay details**: PCP visit, specialist visit, urgent care, ER visit, lab work
+      - **Get prescription tier copays**: generic, preferred brand, non-preferred brand, specialty
+      - **Get emergency services details**: ER copay/coinsurance, ambulance coverage, out-of-network ER policy, whether ER copay is waived if admitted
+      - **Formulary check**: If medications are provided, check whether each drug is on the plan's formulary and which tier it falls in. Flag any plan that doesn't cover a required medication.
+      - **Provider network check**: If providers are listed, check whether they are in-network for each plan. Flag any plan that excludes a required provider.
+
+      **Step 3:** Research off-marketplace carrier plans:
+      - Check major carriers (BCBS, Aetna, UHC, Cigna) and regional carriers
+      - Only include if meaningfully different from marketplace options
+      - Note: no subsidies apply to off-marketplace plans
+
+      **Step 4:** Research short-term/gap insurance:
+      - Find available short-term plans in {{ state }}
+      - List maximum duration allowed in this state
+      - EXPLICITLY list what's NOT covered vs ACA (pre-existing conditions, maternity, mental health, preventive care)
+
+      **Step 5:** Research health sharing ministries:
+      - Include Medi-Share, CHM, Samaritan Ministries, Sedera
+      - Document the sharing model and annual unshared amount
+      - EXPLICITLY state these are NOT insurance
+
+      **Step 6:** Check employer arrangements:
+      - If self-employed or small business owner: explain ICHRA/QSEHRA options
+      - If employed: note how employer coverage affects marketplace eligibility
+
+      **Step 7:** Build real-world cost scenarios using copay-level data:
+      - **This household's actual usage** (PRIMARY scenario): Use the usage pattern provided ({{ usage_pattern }}). If not provided, estimate from health needs and household composition. Calculate: premiums + (actual visit copays × frequency) + (actual Rx copays × fills) + anticipated procedure costs. THIS is the scenario that determines the recommendation.
+      - **Low-use year**: premiums + 2 PCP visits + 1 specialist + 4 generic Rx per covered member
+      - **High-use year**: premiums + monthly specialist + monthly lab + ongoing brand Rx + 1 ER visit
+      - **Worst case**: premiums + out-of-pocket maximum
+      - For each scenario, show total cost per plan and identify the winner with dollar gap
+      - **If premium budget is specified** ({{ premium_budget }}): eliminate plans that exceed it and note what was excluded
+
+      **Step 8:** Build emergency services comparison table:
+      - ER copay/coinsurance per plan
+      - Ambulance coverage (ground and air)
+      - Out-of-network emergency policy
+      - Whether ER copay is waived upon admission
+
+      **Step 9:** Recommend coverage channel per household member.
+
+      **Step 10:** Replace every `<!-- FILL: ... -->` placeholder in STATUS.md.
+
+      ---
+
+      ## Input Data
+
+      **Household Profile:** {{ household_profile }}
+      **Zip Code:** {{ zip_code }}
+      **Income Type:** {{ income_type }}
+      **Medications:** {{ medications }}
+      **Providers to Keep:** {{ providers }}
+      **Health Needs:** {{ health_needs }}
+      **Usage Pattern:** {{ usage_pattern }}
+      **Current Coverage:** {{ current_coverage }}
+      **Premium Budget:** {{ premium_budget }}
+      **Network Preference:** {{ network_preference }}
+      **Pharmacy Preference:** {{ pharmacy_preference }}
+      **Expected Income Change:** {{ expected_income_change }}
+
+      {% if verification_corrections %}
+      ---
+      ## CORRECTIONS FROM EVIDENCE VERIFIER (use these corrected values)
+
+      {{ verification_corrections }}
+      {% endif %}
+
+    quality_gate:
+      type: all
+      gates:
+        - type: contains
+          required:
+            - "## ACA Marketplace Plans"
+            - "## Short-Term / Gap Insurance"
+            - "## Health Sharing Ministries"
+            - "## Real-World Cost Scenarios"
+            - "### Scenario Winner Analysis"
+            - "## Emergency Services Comparison"
+            - "## STATUS: COMPLETE"
+        - type: not_contains
+          forbidden:
+            - "<!-- FILL:"
+            - "## BLOCKED"
+
+  # ── Phase 3: Evidence Verification (waits for both research phases) ─
+  - name: evidence-verification
+    depends_on: [benefits-research, insurance-research]
+    description: "Adversarial fact-checking of all upstream research data"
+    agent: community/evidence-verifier
+    complexity: complex
+
+    context:
+      - community/benefit-navigator
+    template: |
+      ## STATUS: COMPLETE
+      ## SUMMARY: <!-- FILL: e.g., "12 checks performed: 10 verified, 1 corrected, 1 critical error" -->
+
+      ## FPL Verification
+      ### Independent Calculation
+      <!-- FILL: Show full math: household size, income, FPL table used (48-state/Alaska/Hawaii), calculation steps, resulting percentage -->
+
+      ### Cross-Phase Comparison
+      <!-- FILL: table with Phase | Reported FPL % | Correct FPL % | Status (VERIFIED/CORRECTED/CRITICAL ERROR) -->
+
+      ## Medicaid Expansion Status
+      <!-- FILL: State | Expansion Status per Context | Status Assumed by Benefits Researcher | Status Assumed by Insurance Analyst | Verdict (VERIFIED/CRITICAL ERROR) -->
+
+      ## Internal Consistency Check
+      <!-- FILL: table with Data Point | Benefits Research Value | Insurance Research Value | Correct Value | Status -->
+
+      ## Income Threshold Verification
+      <!-- FILL: table with Program | Cited Threshold | Recalculated Threshold | FPL % Used | Status -->
+
+      ## Program Existence Verification
+      <!-- FILL: table with Program | State | Exists? | Source | Status -->
+
+      ## Dollar Value Plausibility
+      <!-- FILL: table with Program | Estimated Value | Known Range | Status | Notes -->
+
+      ## Source Citation Audit
+      <!-- FILL: table with Claim | Source Cited | Source Type (.gov/official/none) | Status -->
+
+      ## Verification Summary
+      <!-- FILL: Total checks: X | Verified: X | Corrected: X | Critical Errors: X -->
+
+      ## ALL CHECKS PASSED
+      <!-- FILL: Replace this section header with either "## ALL CHECKS PASSED" or "## CRITICAL ERRORS FOUND" followed by the error list and corrections -->
+    prompt: |
+      # Verify Evidence from Research Phases
+
+      A template has been created in STATUS.md. You MUST replace every `<!-- FILL: ... -->` placeholder.
+      Keep all section headers exactly as they are. Only replace the placeholder comments.
+
+      You are an adversarial fact-checker. Your job is to independently verify every calculation,
+      data point, and claim from the Benefits Research and Insurance Research phases.
+
+      **Step 1: FPL Verification**
+      - Using the FPL tables in the benefit-navigator context, calculate FPL percentage from scratch
+      - Show every step: household size × per-person amount + base amount = 100% FPL threshold
+      - Calculate: (household income ÷ 100% FPL threshold) × 100 = FPL percentage
+      - Compare against what Benefits Research calculated and what Insurance Research calculated
+      - If ANY discrepancy exists, flag it with the correct value
+
+      **Step 2: Medicaid Expansion Status**
+      - Look up the state in the non-expansion state list in the benefit-navigator context
+      - Check that both research phases used the correct expansion status
+      - If wrong: this is a CRITICAL ERROR — it changes Medicaid eligibility for every adult
+
+      **Step 3: Internal Consistency**
+      - Did both phases use the same household size?
+      - Did both phases use the same income?
+      - Did both phases use the same FPL percentage?
+      - Any discrepancy is a CRITICAL ERROR
+
+      **Step 4: Income Thresholds**
+      - For each program, recalculate the income threshold from the FPL table
+      - threshold = (100% FPL for household size) × (program's FPL percentage ÷ 100)
+      - If the cited threshold is off by more than $500, flag it
+
+      **Step 5: Program Existence**
+      - Verify each cited program exists in the stated state
+      - Flag any federal program claimed as state-specific
+      - Flag any program that doesn't exist in that state
+
+      **Step 6: Dollar Value Plausibility**
+      - Compare estimates against known ranges:
+        - SNAP max (family of 3): ~$740/month
+        - WIC: ~$35-75/month
+        - LIHEAP: ~$500-2,000/year
+        - CHIP premiums avoided: ~$100-300/month depending on state
+        - Medicaid: ~$600-1,200/month equivalent value
+      - Flag any estimate more than 2× outside the known range
+
+      **Step 7: Source Citations**
+      - Check that every program cites a .gov URL or official program page
+      - Flag claims without source citations or marked UNVERIFIED
+
+      **Step 8: Final Verdict**
+      - If you found ANY critical errors, replace the "## ALL CHECKS PASSED" header with:
+        `## CRITICAL ERRORS FOUND`
+        followed by a numbered list of each error and the correct value
+      - If all checks passed, keep the "## ALL CHECKS PASSED" header
+
+      ---
+
+      ## Input Data
+
+      **Benefits Research Output:**
+      {{ phase_outputs.get('benefits-research', 'Not available') }}
+
+      **Insurance Research Output:**
+      {{ phase_outputs.get('insurance-research', 'Not available') }}
+
+      **Household Profile:** {{ household_profile }}
+      **State:** {{ state }}
+      **Zip Code:** {{ zip_code }}
+
+    quality_gate:
+      type: all
+      gates:
+        - type: contains
+          required:
+            - "## FPL Verification"
+            - "### Independent Calculation"
+            - "### Cross-Phase Comparison"
+            - "## Medicaid Expansion Status"
+            - "## Internal Consistency Check"
+            - "## Verification Summary"
+            - "## STATUS: COMPLETE"
+        - type: not_contains
+          forbidden:
+            - "<!-- FILL:"
+            - "## BLOCKED"
+            - "## CRITICAL ERRORS FOUND"
+
+  # ── Phase 4: Eligibility Validation (waits for verification) ────────
+  - name: eligibility-validation
+    depends_on: [evidence-verification]
+    description: "Cross-validate eligibility using verified data"
+    agent: community/eligibility-analyst
+    complexity: complex
+
+    context:
+      - community/benefit-navigator
+    template: |
+      ## STATUS: COMPLETE
+      ## SUMMARY: <!-- FILL: e.g., "9 eligible, 3 ineligible, 2 marginal, 1 coverage gap" -->
+
+      ## Verified Data Used
+      <!-- FILL: State the FPL %, Medicaid expansion status, and any corrections from the Evidence Verifier that affect this analysis -->
+
+      ## Eligibility Matrix
+      <!-- FILL: table with Program/Plan | Determination | Key Criterion | Confidence | Notes -->
+
+      ## Ineligible Programs — Reasons
+      <!-- FILL: table with Program | Failing Criterion | Threshold | User's Value | Source -->
+
+      ## Marginal Programs — Information Needed
+      <!-- FILL: table with Program | Missing Information | Impact on Determination -->
+
+      ## Coverage Overlap Analysis
+      <!-- FILL: needs covered by multiple programs, with cost comparison -->
+
+      ## Coverage Gap Analysis
+      <!-- FILL: needs NOT covered by any eligible program (dental, vision, disability, life) -->
+      ### Gap Recommendations
+      <!-- FILL: for each gap, the cheapest way to fill it -->
+
+      ## Income Cliff Analysis
+      <!-- FILL: table with Program | Current Income | Disqualification Threshold | Buffer | Annual Benefit Value at Risk -->
+
+      ## Program Interaction Effects
+      <!-- FILL: categorical eligibility triggers, benefit stacking rules, programs that affect eligibility for other programs -->
+    prompt: |
+      # Validate Eligibility Across All Programs and Plans
+
+      A template has been created in STATUS.md. You MUST replace every `<!-- FILL: ... -->` placeholder.
+      Keep all section headers exactly as they are. Only replace the placeholder comments.
+
+      **IMPORTANT:** The Evidence Verifier has already fact-checked the upstream research data.
+      Use the verifier's corrected values as your ground truth. Do NOT re-derive FPL or
+      re-check Medicaid expansion status — that work is done. Focus on eligibility logic.
+
+      **Step 1:** State which verified data you are using (FPL %, expansion status, any corrections).
+
+      **Step 2:** Review ALL programs from the benefits research AND all plans from the insurance research.
+
+      **Step 3:** For each program/plan, validate every eligibility criterion against the user's profile:
+      - Income vs threshold (using the verifier's confirmed values)
+      - Age requirements per household member
+      - Residency requirements (state, county, duration)
+      - Employment status
+      - Asset limits (if applicable)
+      - Categorical requirements (veteran, disability, etc.)
+
+      **Step 4:** Classify each program:
+      - ELIGIBLE: meets all criteria (state which criteria were checked)
+      - INELIGIBLE: fails one or more criteria (state exactly which and by how much)
+      - MARGINAL: within 10% of threshold OR missing information to determine
+
+      **Step 5:** Analyze coverage overlaps:
+      - Which needs are covered by multiple programs?
+      - Which option is most cost-effective for each overlapping need?
+
+      **Step 6:** Analyze coverage gaps:
+      - What needs are NOT covered by any eligible program?
+      - Common gaps: dental (adult), vision (adult), disability, life insurance
+      - For each gap, identify the cheapest option to fill it
+
+      **Step 7:** Calculate income cliffs:
+      - For each ELIGIBLE program, what income level triggers disqualification?
+      - How close is the user to each cliff?
+      - What's the annual value of the benefit at risk?
+
+      **Step 8:** Check program interactions:
+      - Does receiving SNAP categorically qualify for other programs?
+      - Do any programs reduce eligibility for others?
+      - What's the optimal enrollment order?
+
+      **Step 9:** Replace every `<!-- FILL: ... -->` placeholder in STATUS.md.
+
+      ---
+
+      ## Input Data
+
+      **Evidence Verification Report:**
+      {{ phase_outputs.get('evidence-verification', 'Not available') }}
+
+      **Benefits Research:**
+      {{ phase_outputs.get('benefits-research', 'Not available') }}
+
+      **Insurance Research:**
+      {{ phase_outputs.get('insurance-research', 'Not available') }}
+
+      **Household Profile:** {{ household_profile }}
+
+    quality_gate:
+      type: all
+      gates:
+        - type: contains
+          required:
+            - "## Verified Data Used"
+            - "## Eligibility Matrix"
+            - "## Coverage Gap Analysis"
+            - "## Income Cliff Analysis"
+            - "## STATUS: COMPLETE"
+        - type: not_contains
+          forbidden:
+            - "<!-- FILL:"
+            - "## BLOCKED"
+
+  # ── Phase 5: Action Plan (waits for eligibility validation) ─────────
+  - name: action-plan
+    depends_on: [eligibility-validation]
+    description: "Create prioritized enrollment plan with deadlines and documents"
+    agent: community/action-planner
+    complexity: complex
+
+    context:
+      - community/benefit-navigator
+    template: |
+      ## STATUS: COMPLETE
+      ## SUMMARY: <!-- FILL: e.g., "5 enrollment actions, 2 deadlines within 30 days, total value $18,240/year" -->
+
+      ## Bottom Line
+      <!-- FILL: 2-3 sentence plain-language summary. Lead with total annual value: "Your household qualifies for an estimated $XX,XXX/year in benefits and savings." Then the single most important finding (e.g., coverage gap, critical deadline, or high-value program). Then the #1 action to take this week. -->
+
+      ## Coverage Map
+      ### Per-Member Coverage
+      <!-- FILL: table with Household Member | Healthcare | Dental | Vision | Food | Housing | Other — name the specific program for each cell -->
+
+      ### Remaining Gaps
+      <!-- FILL: gaps with recommended fill options and cost -->
+
+      ## Prioritized Action Plan
+
+      ### Immediate Actions (This Week)
+      <!-- FILL: numbered steps with specific dates, URLs, and documents needed -->
+
+      ### Short-Term Actions (This Month)
+      <!-- FILL: numbered steps with specific dates, URLs, and documents needed -->
+
+      ### Upcoming Actions (Next 1-3 Months)
+      <!-- FILL: numbered steps with specific dates, URLs, and documents needed -->
+
+      ### Monitor & Renew
+      <!-- FILL: renewal dates, recertification requirements -->
+
+      ## Document Checklist
+      <!-- FILL: table with Document | Needed For | Specific Details | How to Obtain -->
+
+      ## Application Directory
+      <!-- FILL: table with Program | Apply Online URL | Phone | Nearest Office + Hours -->
+
+      ## Income Cliff Warnings
+      <!-- FILL: specific dollar amounts where eligibility changes, with annual benefit value at risk -->
+
+      ## Contingency Plans
+      <!-- FILL: "if denied X, immediately apply for Y" fallback sequences -->
+
+      ## Estimated Value Summary
+      <!-- FILL: table with Program | Monthly Value | Annual Value — include every eligible program -->
+      <!-- FILL: **TOTAL ESTIMATED ANNUAL VALUE: $XX,XXX** — bold, prominent -->
+      <!-- FILL: Compare to current situation: "You are currently receiving $X/year. By completing this action plan, you could add $XX,XXX/year in benefits." -->
+    prompt: |
+      # Create Enrollment Action Plan
+
+      A template has been created in STATUS.md. You MUST replace every `<!-- FILL: ... -->` placeholder.
+      Keep all section headers exactly as they are. Only replace the placeholder comments.
+
+      **Step 1:** Review the eligibility matrix. Work ONLY with ELIGIBLE and MARGINAL programs.
+
+      **Step 2:** Build the coverage map:
+      - For each household member, identify the optimal coverage source for each need
+      - Where multiple programs cover the same need, choose the most cost-effective
+      - Identify any remaining gaps and the cheapest way to fill them
+
+      **Step 3:** Create the prioritized action plan:
+      - Sort by deadline urgency (enrollment windows closing soonest come first)
+      - Group actions that can share documents or be done at the same office
+      - Include specific dates (not "soon" — use actual calendar dates)
+      - Include the application URL for each action
+      - Include estimated processing time
+
+      **Step 4:** Build the document checklist:
+      - For each application, list every required document
+      - Be specific: "last 30 days of pay stubs" not "proof of income"
+      - Note how to obtain documents the user may not have (e.g., "request W-2 from employer" or "download from IRS.gov")
+
+      **Step 5:** Build the application directory:
+      - Online application URL (verified)
+      - Phone number for questions
+      - Nearest physical office with address and hours (if in-person required)
+
+      **Step 6:** Add income cliff warnings with specific dollar amounts.
+
+      **Step 7:** Add contingency plans:
+      - "If denied CHIP, immediately apply for ACA children's coverage"
+      - "If income increases above $X, switch from Medicaid to ACA marketplace"
+
+      **Step 8:** Calculate estimated monthly/annual savings from all eligible programs.
+
+      **Step 9:** Replace every `<!-- FILL: ... -->` placeholder in STATUS.md.
+
+      ---
+
+      ## Input Data
+
+      **Eligibility Validation:**
+      {{ phase_outputs.get('eligibility-validation', 'Not available') }}
+
+      **Evidence Verification:**
+      {{ phase_outputs.get('evidence-verification', 'Not available') }}
+
+      **Benefits Research:**
+      {{ phase_outputs.get('benefits-research', 'Not available') }}
+
+      **Insurance Research:**
+      {{ phase_outputs.get('insurance-research', 'Not available') }}
+
+      **Household Profile:** {{ household_profile }}
+      **State:** {{ state }}
+      **County:** {{ county }}
+      **Medications:** {{ medications }}
+      **Providers to Keep:** {{ providers }}
+      **Current Coverage:** {{ current_coverage }}
+      **Existing Benefits:** {{ existing_benefits }}
+      **Expected Income Change:** {{ expected_income_change }}
+
+    quality_gate:
+      type: all
+      gates:
+        - type: contains
+          required:
+            - "## Bottom Line"
+            - "## Coverage Map"
+            - "## Prioritized Action Plan"
+            - "## Document Checklist"
+            - "## Application Directory"
+            - "## Income Cliff Warnings"
+            - "## Contingency Plans"
+            - "## Estimated Value Summary"
+            - "TOTAL ESTIMATED ANNUAL VALUE"
+            - "## STATUS: COMPLETE"
+        - type: not_contains
+          forbidden:
+            - "<!-- FILL:"
+            - "## BLOCKED"
+            - "apply soon"
+            - "as soon as possible"
+            - "check your local"
+            - "contact your state"
+
+# ── Feedback Loops ──────────────────────────────────────────────────────
+# When the Evidence Verifier finds critical errors, send corrections back
+# to the research phases and re-verify.
+
+feedback_loops:
+  global_max_total_iterations: 4
+
+  loops:
+    - name: benefits-research-correction
+      trigger:
+        phase: evidence-verification
+        "on": quality_gate_failure
+        when_output_contains: "## CRITICAL ERRORS FOUND"
+      extract:
+        errors: "## CRITICAL ERRORS FOUND\n([\\s\\S]+?)(?=## |$)"
+      route_to:
+        phase: benefits-research
+        inject:
+          verification_corrections: "{{ extract.errors }}"
+      then:
+        rerun: evidence-verification
+      limits:
+        max_iterations: 2
+        timeout_seconds_per_iteration: 300
+
+    - name: insurance-research-correction
+      trigger:
+        phase: evidence-verification
+        "on": quality_gate_failure
+        when_output_contains: "## CRITICAL ERRORS FOUND"
+      extract:
+        errors: "## CRITICAL ERRORS FOUND\n([\\s\\S]+?)(?=## |$)"
+      route_to:
+        phase: insurance-research
+        inject:
+          verification_corrections: "{{ extract.errors }}"
+      then:
+        rerun: evidence-verification
+      limits:
+        max_iterations: 2
+        timeout_seconds_per_iteration: 300
