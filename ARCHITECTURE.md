@@ -39,11 +39,11 @@
 ┌────────────────────────┐            ┌──────────────────────────┐
 │  Kealu Vector (kvr)    │            │  Healthcare.gov          │
 │                        │            │  Marketplace API         │
-│  5 Gemini agents       │            │                          │
-│  Parallel DAG          │            │  Plan search             │
-│  Quality gates         │            │  APTC/CSR estimates      │
-│  Feedback loops        │            │  Medicaid screening      │
-│  Decision logging      │            │  County resolution       │
+│  5 agents (model-      │            │                          │
+│  agnostic, Gemini in   │            │  Plan search             │
+│  target env)           │            │  APTC/CSR estimates      │
+│  Parallel DAG          │            │  Medicaid screening      │
+│  Quality gates         │            │  County resolution       │
 └────────────────────────┘            └──────────────────────────┘
 ```
 
@@ -53,7 +53,7 @@
 2. **Antigravity → MCP Server** — JSON-RPC `tools/call` with structured arguments
 3. **MCP Server → Intake Check** — determines if enough data exists for analysis
 4. **MCP Server → kvr / CMS API** — dispatches to appropriate backend
-5. **kvr → 5 Gemini agents** — parallel research, adversarial verification, eligibility, action plan
+5. **kvr → 5 agents** — parallel research, adversarial verification, eligibility, action plan (model-agnostic; Gemini in target config)
 6. **CMS API → MCP Server** — real plan data, subsidy calculations
 7. **MCP Server → Antigravity** — structured markdown response
 8. **Antigravity → User** — conversational presentation of results
@@ -65,7 +65,7 @@
 | User ↔ AI | Antigravity UI | Gemini + MCP Server | MCP over stdio |
 | MCP Server ↔ Orchestrator | Python process | kvr binary | subprocess + decision.jsonl |
 | MCP Server ↔ CMS | Python process | Healthcare.gov | HTTPS REST API |
-| Orchestrator ↔ Agents | kvr runner | Gemini API | Gemini API (via kvr) |
+| Orchestrator ↔ Agents | kvr runner | LLM API (model-agnostic) | Gemini API in target config (via kvr) |
 
 ## Directory Structure Rationale
 
@@ -151,11 +151,11 @@ kealu-agents-workforce/           # Vector monorepo — generic orchestrator
 **Decision:** Use pytest-bdd with Gherkin feature files. Mock `subprocess.run` and `urllib` at the boundary. Test fixtures use realistic Texas-specific data (Harris County, 77001, $42k income, household of 3) that exercises real eligibility logic.
 
 **Consequences:**
-- 71 tests run in <0.2 seconds — fast enough for pre-commit
+- 78 mocked tests run in <0.2 seconds — fast enough for pre-commit
 - Feature files serve as executable documentation of system behavior
 - Mock data mirrors real CMS API response structure — catches deserialization bugs
 - No live API dependency for CI — tests pass without `CMS_API_KEY`
-- Tradeoff: doesn't catch CMS API contract changes — acceptable for a hackathon project
+- 3 integration tests (`pytest -m integration`) hit the live CMS API to verify contract compatibility — skipped by default, run when `CMS_API_KEY` is set
 
 ## ADR-006: MCP progress notifications via kvr phase streaming
 

@@ -8,6 +8,7 @@ API docs: https://developer.cms.gov/marketplace-api/
 
 from __future__ import annotations
 
+import datetime
 import functools
 import json
 import logging
@@ -154,7 +155,7 @@ def search_plans(
     state: str,
     zip_code: str,
     *,
-    year: int = 2025,
+    year: int | None = None,
     limit: int = 10,
     metal_levels: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -162,6 +163,8 @@ def search_plans(
 
     Returns plans sorted by premium (lowest first) with APTC applied.
     """
+    if year is None:
+        year = datetime.date.today().year
     body: dict[str, Any] = {
         "household": {
             "income": household_income,

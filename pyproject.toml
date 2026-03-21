@@ -18,6 +18,12 @@ dev = [
 [project.scripts]
 benefit-navigator = "benefit_navigator.mcp_server:main"
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: live CMS Marketplace API tests (require CMS_API_KEY)",
+]
+addopts = "-m 'not integration'"
+
 [build-system]
 requires = ["setuptools>=78.1.1"]
 build-backend = "setuptools.build_meta"
