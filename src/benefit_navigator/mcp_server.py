@@ -636,19 +636,35 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             result = subprocess.run(cmd, capture_output=True, text=True)
             returncode = result.returncode
 
-        log_path = Path.cwd() / ".workforce" / run_id / "decision.jsonl"
+        run_dir = Path.cwd() / ".workforce" / run_id
 
-        if not log_path.exists():
-            return f"Workflow failed to produce decision log. Exit code {returncode}."
+        if not run_dir.exists():
+            return f"Workflow failed to produce output directory. Exit code {returncode}."
 
+        # Phase outputs are stored as {phase-name}.md files in the run directory
         phase_outputs = {}
-        with open(log_path) as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                data = json.loads(line)
-                if data.get("type") == "PHASE_RESULT" and data.get("phase_name"):
-                    phase_outputs[data["phase_name"]] = data.get("metadata", {}).get("output", "")
+        phase_names = [
+            "benefits-research",
+            "insurance-research",
+            "evidence-verification",
+            "eligibility-validation",
+            "action-plan",
+        ]
+        for phase_name in phase_names:
+            phase_file = run_dir / f"{phase_name}.md"
+            if phase_file.exists():
+                phase_outputs[phase_name] = phase_file.read_text()
+
+        if not phase_outputs:
+            # Fallback: check phases subdirectory
+            phases_dir = run_dir / "phases"
+            if phases_dir.exists():
+                for phase_dir in sorted(phases_dir.iterdir()):
+                    output_file = phase_dir / "output.md"
+                    if output_file.exists():
+                        # Extract phase name from dir name like "01-benefits-research"
+                        name = "-".join(phase_dir.name.split("-")[1:])
+                        phase_outputs[name] = output_file.read_text()
 
         return _collect_output({"phase_outputs": phase_outputs})
     except Exception as e:

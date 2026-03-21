@@ -11,7 +11,7 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from benefit_navigator.mcp_server import _execute_tool
 
-from ..conftest import MOCK_PHASE_OUTPUTS, build_decision_jsonl
+from ..conftest import MOCK_PHASE_OUTPUTS
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -143,10 +143,10 @@ def run_navigate(ctx, tmp_path, monkeypatch):
             if arg == "--run-id" and i + 1 < len(cmd):
                 run_id = cmd[i + 1]
 
-        log_dir = tmp_path / ".workforce" / run_id
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / "decision.jsonl"
-        log_path.write_text(build_decision_jsonl(ctx.phase_outputs))
+        run_dir = tmp_path / ".workforce" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        for phase_name, output in ctx.phase_outputs.items():
+            (run_dir / f"{phase_name}.md").write_text(output)
 
         result = MagicMock()
         result.returncode = 0

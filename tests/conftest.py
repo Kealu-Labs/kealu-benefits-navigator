@@ -77,7 +77,7 @@ MOCK_PHASE_OUTPUTS = {
         "- Available in Texas (state allows up to 364 days)\n"
         "- NOT recommended: no coverage for pre-existing conditions (diabetes)\n"
     ),
-    "evidence-verify": (
+    "evidence-verification": (
         "## Evidence Verification\n\n"
         "### FPL Calculation\n"
         "- Household of 3, 2025 FPL (48-state): $25,820\n"
@@ -94,7 +94,7 @@ MOCK_PHASE_OUTPUTS = {
         "- Texas CHIP: 201% FPL = $51,898 for household of 3\n"
         "- $42,000 < $51,898 — **CONFIRMED ELIGIBLE**\n"
     ),
-    "eligibility-check": (
+    "eligibility-validation": (
         "## Eligibility Validation (Cross-Referenced)\n\n"
         "| Program | Status | Confidence | Notes |\n"
         "|---------|--------|------------|-------|\n"
@@ -165,7 +165,7 @@ def mock_phase_outputs():
 
 @pytest.fixture
 def mock_kvr(tmp_path, monkeypatch):
-    """Mock kvr subprocess to return realistic decision.jsonl output.
+    """Mock kvr subprocess to return realistic phase output files.
 
     Returns a helper that lets tests configure which phases appear.
     """
@@ -187,11 +187,11 @@ def mock_kvr(tmp_path, monkeypatch):
                 if arg == "--run-id" and i + 1 < len(cmd):
                     run_id = cmd[i + 1]
 
-            # Write decision.jsonl
-            log_dir = tmp_path / ".workforce" / run_id
-            log_dir.mkdir(parents=True, exist_ok=True)
-            log_path = log_dir / "decision.jsonl"
-            log_path.write_text(build_decision_jsonl(self.phase_outputs))
+            # Write phase output files (matches kvr run output format)
+            run_dir = tmp_path / ".workforce" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            for phase_name, output in self.phase_outputs.items():
+                (run_dir / f"{phase_name}.md").write_text(output)
 
             result = MagicMock()
             result.returncode = 0

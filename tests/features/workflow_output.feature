@@ -26,9 +26,9 @@ Feature: Workflow Output Formatting
     Given the kvr workflow produces all 5 phases
     When navigate_benefits completes
     Then "Benefits Research" appears before "Insurance Research"
-    And "Insurance Research" appears before "Evidence Verify"
-    And "Evidence Verify" appears before "Eligibility Check"
-    And "Eligibility Check" appears before "Action Plan"
+    And "Insurance Research" appears before "Evidence Verification"
+    And "Evidence Verification" appears before "Eligibility Validation"
+    And "Eligibility Validation" appears before "Action Plan"
 
   # ---------------------------------------------------------------
   # Benefits research: Texas-specific programs
