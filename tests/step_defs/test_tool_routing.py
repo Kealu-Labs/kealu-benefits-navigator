@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 from pytest_bdd import given, parsers, scenario, then, when
@@ -56,6 +57,7 @@ class RoutingContext:
         self.result: str = ""
         self.kvr_cmd: list[str] = []
         self.assist_task: str = ""
+        self.var_file_data: dict = {}
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +68,7 @@ class RoutingContext:
 @given("a complete demo profile with skip_intake", target_fixture="ctx")
 def given_demo_profile():
     ctx = RoutingContext()
-    ctx.args = {**DEMO_PROFILE, "skip_intake": "true"}
+    ctx.args = {**DEMO_PROFILE, "skip_intake": True}
     return ctx
 
 
@@ -101,6 +103,7 @@ def execute_navigate(ctx, mock_kvr):
     ctx.result = _execute_tool("navigate_benefits", ctx.args)
     if mock_kvr.called_with:
         ctx.kvr_cmd = mock_kvr.called_with[-1]
+        ctx.var_file_data = mock_kvr.var_file_data
 
 
 @when("the tool is executed with mocked kvr assist")
@@ -145,9 +148,9 @@ def execute_unknown(tool_name):
 
 
 @then(parsers.parse('kvr was invoked with workflow "{workflow}"'))
-def check_workflow(ctx):
-    assert any("benefit-navigator" in arg for arg in ctx.kvr_cmd), (
-        f"Expected 'benefit-navigator' in kvr command: {ctx.kvr_cmd}"
+def check_workflow(ctx, workflow):
+    assert any(workflow in arg for arg in ctx.kvr_cmd), (
+        f"Expected '{workflow}' in kvr command: {ctx.kvr_cmd}"
     )
 
 
@@ -159,19 +162,24 @@ def check_flag(ctx, flag, value):
     raise AssertionError(f"Expected '{flag}' '{value}' in command: {ctx.kvr_cmd}")
 
 
-@then(parsers.parse('the kvr command includes "--var" "{var_value}"'))
-def check_var(ctx, var_value):
-    for i, arg in enumerate(ctx.kvr_cmd):
-        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1] == var_value:
-            return
-    raise AssertionError(f"Expected '--var' '{var_value}' in command: {ctx.kvr_cmd}")
+@then('the kvr command includes "--var-file"')
+def check_var_file_flag(ctx):
+    assert "--var-file" in ctx.kvr_cmd, f"Expected '--var-file' in command: {ctx.kvr_cmd}"
 
 
-@then(parsers.parse('the kvr command does not include "--var" starting with "{prefix}"'))
-def check_var_absent(ctx, prefix):
-    for i, arg in enumerate(ctx.kvr_cmd):
-        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1].startswith(prefix):
-            raise AssertionError(f"Found unexpected '--var' '{ctx.kvr_cmd[i + 1]}' in command")
+@then(parsers.parse('the var file contains key "{key}" with value "{value}"'))
+def check_var_file_key(ctx, key, value):
+    assert key in ctx.var_file_data, f"Key '{key}' not in var file data: {ctx.var_file_data}"
+    assert ctx.var_file_data[key] == value, (
+        f"Expected '{key}'='{value}', got '{ctx.var_file_data[key]}'"
+    )
+
+
+@then(parsers.parse('the var file does not contain key "{key}"'))
+def check_var_file_key_absent(ctx, key):
+    assert key not in ctx.var_file_data, (
+        f"Found unexpected key '{key}' in var file data: {ctx.var_file_data}"
+    )
 
 
 @then("kvr assist was invoked")

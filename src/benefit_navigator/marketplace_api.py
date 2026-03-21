@@ -72,27 +72,23 @@ def _request_with_retry(req: urllib.request.Request) -> Any:
 
 def _get(path: str, params: dict[str, str] | None = None) -> Any:
     """HTTP GET against the Marketplace API."""
-    query = {"apikey": _api_key()}
-    if params:
-        query.update(params)
-    url = f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}"
-    logger.info("GET %s", url.replace(_api_key(), "***"))
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    query = dict(params) if params else {}
+    url = f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}" if query else f"{BASE_URL}{path}"
+    logger.info("GET %s", url)
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "apikey": _api_key()})
     return _request_with_retry(req)
 
 
 def _post(path: str, body: dict[str, Any], params: dict[str, str] | None = None) -> Any:
     """HTTP POST against the Marketplace API."""
-    query = {"apikey": _api_key()}
-    if params:
-        query.update(params)
-    url = f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}"
-    logger.info("POST %s", url.replace(_api_key(), "***"))
+    query = dict(params) if params else {}
+    url = f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}" if query else f"{BASE_URL}{path}"
+    logger.info("POST %s", url)
     data = json.dumps(body).encode()
     req = urllib.request.Request(
         url,
         data=data,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers={"Content-Type": "application/json", "Accept": "application/json", "apikey": _api_key()},
         method="POST",
     )
     return _request_with_retry(req)
@@ -129,7 +125,8 @@ def estimate_eligibility(
 ) -> dict[str, Any]:
     """Estimate APTC, CSR, and Medicaid/CHIP eligibility.
 
-    Each person dict should have: age, gender, is_pregnant (bool), uses_tobacco (bool).
+    Each person dict should have: age, gender, is_pregnant (bool), uses_tobacco (bool),
+    and optionally relationship (str, e.g. "spouse") for has_married_couple detection.
     Returns eligibility estimates including APTC amount and CSR level.
     """
     household = {
@@ -287,8 +284,9 @@ def format_plans_summary(search_result: dict[str, Any], eligibility: dict[str, A
             lines.append(f"- **Quality rating:** {quality}/5 stars")
         lines.append("")
 
-    if total > len(plans):
-        lines.append(f"*Showing top {len(plans)} of {total} available plans.*\n")
+    shown = limit_plans(plans)
+    if total > shown:
+        lines.append(f"*Showing top {shown} of {total} available plans.*\n")
 
     return "\n".join(lines)
 

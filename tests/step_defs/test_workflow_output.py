@@ -97,7 +97,7 @@ class OutputContext:
 
 
 @given("the demo household profile", target_fixture="ctx")
-def given_demo_profile(datatable):
+def given_demo_profile_workflow(datatable):
     ctx = OutputContext()
     ctx.args = {row[0]: row[1].strip() for row in datatable}
     return ctx
