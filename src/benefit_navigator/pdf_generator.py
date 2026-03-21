@@ -88,9 +88,9 @@ class _PdfWriter:
 
         xref_offset = len(buf)
         buf.extend(f"xref\n0 {len(self._objects)}\n".encode())
-        buf.extend(b"0000000000 65535 f \n")
+        buf.extend(b"0000000000 65535 f \r\n")
         for i in range(1, len(self._objects)):
-            buf.extend(f"{offsets[i]:010d} 00000 n \n".encode())
+            buf.extend(f"{offsets[i]:010d} 00000 n \r\n".encode())
 
         buf.extend(
             f"trailer\n<< /Size {len(self._objects)} /Root {catalog} 0 R >>\n"
