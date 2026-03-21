@@ -116,7 +116,7 @@ kealu-benefit-navigator/
 ## Prerequisites
 
 - Python 3.11+
-- [Kealu Vector](https://kealu.com) CLI (`kvr`) installed and on PATH
+- [Kealu Vector](https://kealu.com) CLI (`kvr`) >= 0.114.13 installed and on PATH
 - (Optional) [CMS Marketplace API key](https://developer.cms.gov/marketplace-api/key-request.html) for live insurance plan data
 
 ## Setup
@@ -194,7 +194,7 @@ The CMS Marketplace API provides:
 - **APTC subsidy calculation** — household-specific tax credit amounts based on income and FPL
 - **CSR eligibility** — cost-sharing reduction levels that lower deductibles on Silver plans
 - **Medicaid/CHIP screening** — flags households that may qualify before they spend time on marketplace plans
-- **Provider/drug coverage** — verify if specific doctors and medications are covered by each plan
+- **Provider/drug coverage** — API endpoints available for verifying doctor and medication coverage (not yet wired into MCP tools)
 
 ## Architecture & Decision Records
 
@@ -207,4 +207,3 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system diagram, data flow, k
 - **Healthcare.gov Marketplace API** — Live insurance plan data, subsidy calculations, and eligibility estimates from CMS
 - **MCP (Model Context Protocol)** — stdio-based JSON-RPC 2.0 connecting Antigravity to the benefit navigator
 - **Kealu Vector** — Enterprise workflow orchestrator with parallel phases, quality gates, persona-driven agents, and decision logging
-- **Google ADK** — Agent Development Kit for agent-to-agent communication

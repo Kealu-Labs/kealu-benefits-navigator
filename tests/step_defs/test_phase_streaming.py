@@ -137,7 +137,9 @@ def given_log_line(line):
 def build_command(ctx):
     import shutil
 
-    kvr = shutil.which("kvr") or "/Users/sempi/.local/bin/kvr"
+    kvr = shutil.which("kvr")
+    if not kvr:
+        raise RuntimeError("kvr not found on PATH")
     cmd = [kvr, "run", "benefit-navigator", "--mode", "automated", "--no-progress", "--run-id", "test"]
     if ctx.progress_token:
         cmd.extend(["--phase-stream", "stdout"])

@@ -366,15 +366,16 @@ def check_empty_counties(ctx):
 
 @then("the APTC is greater than 0")
 def check_aptc_positive(ctx):
+    import pytest
     est = ctx.eligibility_result.get("estimates", [{}])[0]
-    assert est.get("aptc", 0) > 0, f"APTC was {est.get('aptc')}"
+    assert est.get("aptc", 0) == pytest.approx(380.42), f"APTC was {est.get('aptc')}"
 
 
 @then(parsers.parse("the FPL percentage is approximately {fpl:d}"))
 def check_fpl(ctx, fpl):
     est = ctx.eligibility_result.get("estimates", [{}])[0]
     actual = est.get("fpl", 0)
-    assert abs(actual - fpl) < 5, f"Expected FPL ~{fpl}, got {actual}"
+    assert abs(actual - fpl) < 1, f"Expected FPL ~{fpl}, got {actual}"
 
 
 @then("the result flags Medicaid/CHIP eligibility")
@@ -386,7 +387,7 @@ def check_medicaid_flag(ctx):
 @then(parsers.parse("at least {n:d} plan is returned"))
 def check_plan_count(ctx, n):
     plans = ctx.plan_result.get("plans", [])
-    assert len(plans) >= n, f"Expected at least {n} plans, got {len(plans)}"
+    assert len(plans) == 5, f"Expected 5 plans from mock, got {len(plans)}"
 
 
 @then("each plan has a name, metal level, and premium")

@@ -107,6 +107,9 @@ def execute_navigate(ctx, mock_kvr):
 def execute_with_assist_mock(ctx, monkeypatch):
     import subprocess as sp
 
+    # Ensure CMS API path is not taken so fallback (kvr assist) is used
+    monkeypatch.delenv("CMS_API_KEY", raising=False)
+
     captured = MagicMock()
 
     def mock_run(cmd, **kwargs):

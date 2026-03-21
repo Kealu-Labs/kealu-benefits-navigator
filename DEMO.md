@@ -14,13 +14,15 @@
       "command": "/bin/zsh",
       "args": [
         "-c",
-        "set -a && source /Users/sempi/.env && source /Users/sempi/dev/kealu-benefit-navigator/.env && set +a && exec /Users/sempi/dev/kealu-benefit-navigator/.venv/bin/python -m benefit_navigator"
+        "set -a && source ~/.env && source /path/to/kealu-benefit-navigator/.env && set +a && exec /path/to/kealu-benefit-navigator/.venv/bin/python -m benefit_navigator"
       ],
-      "cwd": "/Users/sempi/dev/kealu-benefit-navigator"
+      "cwd": "/path/to/kealu-benefit-navigator"
     }
   }
 }
 ```
+
+> **Note:** Replace `/path/to/kealu-benefit-navigator` with your actual project path.
 
 ## Prompts
 
