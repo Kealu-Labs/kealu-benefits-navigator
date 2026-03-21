@@ -77,4 +77,5 @@ Paste each prompt after the previous response completes.
 - **Adversarial verification** — a dedicated agent fact-checks the other agents' work
 - **5 specialized Gemini agents** orchestrated in parallel by Kealu Vector
 - **Zero dependencies** — MCP server is stdlib-only Python, no pip packages needed
-- **59 BDD tests** — full coverage of intake flow, MCP protocol, tool routing, workflow output, and marketplace API integration
+- **67 BDD tests** — full coverage of intake flow, MCP protocol, tool routing, workflow output, marketplace API, and progress streaming
+- **7 ADRs** — architecture decisions documented in [ARCHITECTURE.md](ARCHITECTURE.md)

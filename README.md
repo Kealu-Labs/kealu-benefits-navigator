@@ -99,7 +99,7 @@ kealu-benefit-navigator/
 │   └── action-planner.md
 ├── contexts/community/        # Domain knowledge contexts
 │   └── benefit-navigator.md   # FPL tables, program reference, quality standards
-├── tests/                     # 59 BDD tests (pytest-bdd)
+├── tests/                     # 67 BDD tests (pytest-bdd)
 │   ├── features/              # Gherkin scenarios
 │   └── step_defs/             # Step implementations
 ├── .env.example               # CMS API key template
@@ -177,6 +177,10 @@ The CMS Marketplace API provides:
 - **CSR eligibility** — cost-sharing reduction levels that lower deductibles on Silver plans
 - **Medicaid/CHIP screening** — flags households that may qualify before they spend time on marketplace plans
 - **Provider/drug coverage** — verify if specific doctors and medications are covered by each plan
+
+## Architecture & Decision Records
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system diagram, data flow, key boundaries, and 7 Architecture Decision Records covering zero-dependency design, CMS API integration, domain isolation, adversarial verification, BDD test strategy, progress streaming, and tiered intake flow.
 
 ## Technologies
 
