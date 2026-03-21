@@ -21,6 +21,7 @@ MCP protocol reference: https://modelcontextprotocol.io/specification
 from __future__ import annotations
 
 import concurrent.futures
+import datetime
 import json
 import logging
 import os
@@ -29,11 +30,31 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
+import threading
 import uuid
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Precompiled regex patterns
+_ZIP_RE = re.compile(r"\b\d{5}(?:-\d{4})?\b")
+_ZIP_EXACT_RE = re.compile(r"\b(\d{5})\b")
+_AGE_PATTERNS = [
+    re.compile(r"ages?\s+(\d+)\s+and\s+(\d+)", re.IGNORECASE),
+    re.compile(r"(\d+)\s+and\s+(\d+)\s+year", re.IGNORECASE),
+    re.compile(r"age\s+(\d+)", re.IGNORECASE),
+    re.compile(r"(\d+)\s*(?:yo|y/o|year.?old)", re.IGNORECASE),
+]
+_FAMILY_SIZE_RE = re.compile(r"(?:family|household)\s+of\s+(\d+)", re.IGNORECASE)
+_KID_COUNT_RE = re.compile(r"(\d+)\s*kid|(\d+)\s*child", re.IGNORECASE)
+_INCOME_PATTERNS = [
+    re.compile(r"\$\s*([\d,]+)\s*k?\s*/?\s*(?:yr|year|annual)", re.IGNORECASE),
+    re.compile(r"\$\s*([\d,]+)\s*k\b", re.IGNORECASE),
+    re.compile(r"\$\s*([\d,]+)\b", re.IGNORECASE),
+    re.compile(r"([\d,]+)\s*(?:income|salary|earn)", re.IGNORECASE),
+]
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -175,6 +196,10 @@ _TOOLS = [
                         "Section 8, TANF, ACA Marketplace, etc."
                     ),
                 },
+                "zip_code": {
+                    "type": "string",
+                    "description": "5-digit ZIP code for county/state resolution and Medicaid lookup",
+                },
             },
             "required": ["household_profile", "program"],
         },
@@ -238,13 +263,22 @@ _TOOLS = [
 # ---------------------------------------------------------------------------
 
 
-def _audit_log(action: str, resource: str, outcome: str, *, details: dict[str, Any] | None = None) -> None:
+def _audit_log(
+    action: str,
+    resource: str,
+    outcome: str,
+    *,
+    correlation_id: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> None:
     """Emit a structured audit event for data access and tool invocations."""
     event = {
         "audit": True,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "action": action,
         "resource": resource,
         "outcome": outcome,
+        "correlation_id": correlation_id or "none",
     }
     if details:
         event["details"] = details
@@ -279,17 +313,18 @@ def _execute_tool(name: str, arguments: dict[str, Any], *, progress_token: str |
 
     Returns the workflow output as a string.
     """
-    _audit_log("tool_call", name, "started", details={"has_zip": bool(arguments.get("zip_code"))})
+    corr_id = uuid.uuid4().hex[:12]
+    _audit_log("tool_call", name, "started", correlation_id=corr_id, details={"has_zip": bool(arguments.get("zip_code"))})
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
-        _audit_log("tool_call", name, "error", details={"reason": "unknown_tool"})
+        _audit_log("tool_call", name, "error", correlation_id=corr_id, details={"reason": "unknown_tool"})
         return f"Unknown tool: {name}"
     try:
         result = handler(arguments, progress_token=progress_token)
-        _audit_log("tool_call", name, "completed")
+        _audit_log("tool_call", name, "completed", correlation_id=corr_id)
         return result
     except Exception as e:
-        _audit_log("tool_call", name, "error", details={"error": str(e)})
+        _audit_log("tool_call", name, "error", correlation_id=corr_id, details={"error": str(e)})
         raise
 
 
@@ -539,7 +574,7 @@ def _check_intake_completeness(args: dict[str, Any]) -> str | None:
 
 def _contains_zip(text: str) -> bool:
     """Check if text contains something that looks like a US ZIP code."""
-    return bool(re.search(r"\b\d{5}(?:-\d{4})?\b", text))
+    return bool(_ZIP_RE.search(text))
 
 
 def _summarize_provided(args: dict[str, Any], profile: str) -> str:
@@ -591,8 +626,8 @@ def _format_intake_response(
         lines.append(
             "**Note:** You can call this tool again with the additional details "
             "for a personalized analysis, or call it again with the same data to "
-            "proceed with a general analysis. Add `skip_intake` = true to skip "
-            "these questions and run immediately with available data."
+            "proceed with a general analysis. Set `skip_intake` to `true` (boolean) "
+            "to skip these questions and run immediately with available data."
         )
 
     return "\n".join(lines)
@@ -619,6 +654,8 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
         if progress_token:
             cmd.extend(["--phase-stream", "stdout"])
 
+        # Write sensitive vars to a temp file instead of passing as CLI args
+        # to avoid PII exposure in OS process table (ps aux)
         var_keys = [
             "household_profile",
             "state",
@@ -637,20 +674,34 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             "assets",
             "expected_income_change",
         ]
-        for key in var_keys:
-            val = args.get(key)
-            if val:
-                cmd.extend(["--var", f"{key}={val}"])
+        var_file = None
+        try:
+            var_data = {key: args[key] for key in var_keys if args.get(key)}
+            if var_data:
+                var_file = tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".json", prefix="kvr-vars-", delete=False
+                )
+                json.dump(var_data, var_file)
+                var_file.close()
+                cmd.extend(["--var-file", var_file.name])
 
-        logger.info("Running benefit-navigator run_id=%s", run_id)
+            logger.info("Running benefit-navigator run_id=%s", run_id)
 
-        if progress_token:
-            # Stream mode: read phase events in real time
-            returncode = _run_with_progress(cmd, progress_token)
-        else:
-            # Simple mode: wait for completion
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            returncode = result.returncode
+            if progress_token:
+                # Stream mode: read phase events in real time
+                returncode = _run_with_progress(cmd, progress_token)
+            else:
+                # Simple mode: wait for completion
+                result = subprocess.run(
+                    cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                    text=True, timeout=KVR_TIMEOUT,
+                )
+                if result.returncode != 0:
+                    logger.warning("kvr exited with code %d: %s", result.returncode, result.stderr[:500])
+                returncode = result.returncode
+        finally:
+            if var_file and os.path.exists(var_file.name):
+                os.unlink(var_file.name)
 
         run_dir = Path.cwd() / ".workforce" / run_id
 
@@ -702,13 +753,26 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
 
     Reads stdout line by line. Lines prefixed with [PHASE_STREAM] are parsed
     as phase events and translated to MCP notifications/progress messages.
+    Stderr is drained in a background thread to prevent pipe buffer deadlock.
     """
     completed_phases = 0
     total_phases = 0
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # Drain stderr in background to prevent deadlock when kvr emits >64KB
+    stderr_output: list[str] = []
+    stderr_thread = threading.Thread(
+        target=lambda: stderr_output.append(proc.stderr.read()),
+        daemon=True,
+    )
+    stderr_thread.start()
+
     try:
         for line in proc.stdout:
+            if _shutdown_requested:
+                proc.terminate()
+                break
+
             line = line.rstrip("\n")
             if not line.startswith(_PHASE_STREAM_PREFIX):
                 continue
@@ -728,7 +792,6 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
                 _send_progress(progress_token, 0, total_phases, "Starting workflow...")
 
             elif event_type == "phase_start":
-                idx = metadata.get("phase_index", 0)
                 total = metadata.get("total_phases", total_phases)
                 phase_label = phase.replace("-", " ").title()
                 _send_progress(progress_token, completed_phases, total, f"Running: {phase_label}")
@@ -740,6 +803,9 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
 
     finally:
         proc.wait()
+        stderr_thread.join(timeout=5)
+        if stderr_output and stderr_output[0]:
+            logger.debug("kvr stderr: %s", stderr_output[0][:1000])
 
     return proc.returncode
 
@@ -776,7 +842,7 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             zip_code = args.get("zip_code", "")
             if not zip_code:
                 # Try to extract from profile
-                m = re.search(r"\b(\d{5})\b", args.get("household_profile", ""))
+                m = _ZIP_EXACT_RE.search(args.get("household_profile", ""))
                 if m:
                     zip_code = m.group(1)
 
@@ -791,8 +857,22 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
                     people = _parse_household_for_api(args)
                     income = _parse_income(args)
 
-                    elig = estimate_eligibility(income, people, state, fips, zip_code)
-                    estimates = elig.get("estimates", [{}])
+                    # Parallelize eligibility and Medicaid lookup
+                    elig = None
+                    medicaid = None
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                        elig_future = executor.submit(estimate_eligibility, income, people, state, fips, zip_code)
+                        medicaid_future = executor.submit(get_state_medicaid, state)
+                        try:
+                            elig = elig_future.result()
+                        except Exception:
+                            logger.debug("Eligibility estimate failed", exc_info=True)
+                        try:
+                            medicaid = medicaid_future.result()
+                        except Exception:
+                            logger.debug("Medicaid enrichment failed for state %s", state, exc_info=True)
+
+                    estimates = (elig or {}).get("estimates", [{}])
                     if estimates:
                         est = estimates[0]
                         lines = ["## CMS Marketplace Data (Live)\n"]
@@ -807,18 +887,13 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
                             lines.append(f"- **Federal Poverty Level:** {fpl_pct:.1f}%")
                         lines.append("")
 
-                        # Get state Medicaid thresholds
-                        try:
-                            medicaid = get_state_medicaid(state)
-                            if medicaid:
-                                lines.append(f"### {state} Medicaid Thresholds")
-                                for group in medicaid.get("poverty_levels", []):
-                                    lines.append(
-                                        f"- {group.get('group', 'Unknown')}: {group.get('percentage', 'N/A')}% FPL"
-                                    )
-                                lines.append("")
-                        except Exception:
-                            logger.debug("Medicaid enrichment failed for state %s", state, exc_info=True)
+                        if medicaid:
+                            lines.append(f"### {state} Medicaid Thresholds")
+                            for group in medicaid.get("poverty_levels", []):
+                                lines.append(
+                                    f"- {group.get('group', 'Unknown')}: {group.get('percentage', 'N/A')}% FPL"
+                                )
+                            lines.append("")
 
                         enrichment = "\n".join(lines) + "\n---\n\n"
         except Exception:
@@ -936,33 +1011,26 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
     people: list[dict[str, Any]] = []
 
     # Detect gender hints from profile text
-    has_male_hint = any(
-        marker in profile_lower
-        for marker in ["husband", "father", "dad", "male", "man ", "boy", "son "]
-    )
-    has_female_hint = any(
-        marker in profile_lower
-        for marker in ["wife", "mother", "mom", "female", "woman", "girl", "daughter"]
-    )
+    male_markers = ["husband", "father", "dad", "male", "man ", "boy", "son "]
+    female_markers = ["wife", "mother", "mom", "female", "woman", "girl", "daughter"]
+    has_male_hint = any(marker in profile_lower for marker in male_markers)
+    has_female_hint = any(marker in profile_lower for marker in female_markers)
 
     # Determine primary applicant gender from context
     primary_gender = "Female"  # CMS API default
     if has_male_hint and not has_female_hint:
         primary_gender = "Male"
 
-    # Extract ages from profile text
-    age_patterns = [
-        r"ages?\s+(\d+)\s+and\s+(\d+)",  # "ages 4 and 9"
-        r"(\d+)\s+and\s+(\d+)\s+year",  # "4 and 9 year old"
-        r"age\s+(\d+)",  # "age 35"
-        r"(\d+)\s*(?:yo|y/o|year.?old)",  # "35yo", "35 year old"
-    ]
+    # Determine child gender — if both genders mentioned, alternate; else use CMS default
+    child_gender = "Female"  # CMS API default
+    if any(m in profile_lower for m in ["boy", "son "]) and not any(m in profile_lower for m in ["girl", "daughter"]):
+        child_gender = "Male"
 
     child_ages = []
     adult_age = DEFAULT_ADULT_AGE
 
-    for pattern in age_patterns:
-        matches = re.findall(pattern, profile, re.IGNORECASE)
+    for pattern in _AGE_PATTERNS:
+        matches = pattern.findall(profile)
         for match in matches:
             if isinstance(match, tuple):
                 for age_str in match:
@@ -989,10 +1057,10 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
 
     # Children
     for age in child_ages:
-        people.append({"age": age, "gender": "Female", "uses_tobacco": False})
+        people.append({"age": age, "gender": child_gender, "uses_tobacco": False})
 
     # If "family of N" or "household of N" mentioned, pad to that size
-    size_match = re.search(r"(?:family|household)\s+of\s+(\d+)", profile, re.IGNORECASE)
+    size_match = _FAMILY_SIZE_RE.search(profile)
     if size_match:
         try:
             target = int(size_match.group(1))
@@ -1003,7 +1071,7 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
             people.append({"age": DEFAULT_ADULT_AGE, "gender": "Female", "uses_tobacco": False})
 
     # If we only have 1 person but "kids" or "children" are mentioned, add defaults
-    kid_match = re.search(r"(\d+)\s*kid|(\d+)\s*child", profile, re.IGNORECASE)
+    kid_match = _KID_COUNT_RE.search(profile)
     if kid_match and not child_ages:
         try:
             n_kids = int(kid_match.group(1) or kid_match.group(2))
@@ -1020,18 +1088,16 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _parse_income(args: dict[str, Any]) -> int:
-    """Parse income from args, with fallback extraction from household_profile."""
+    """Parse income from args, with fallback extraction from household_profile.
+
+    Returns parsed income or DEFAULT_INCOME if no income pattern matched.
+    Logs a warning when using the default since it may produce incorrect
+    CMS API results near ACA subsidy cutoffs.
+    """
     profile = args.get("household_profile", "")
 
-    # Try explicit patterns
-    patterns = [
-        r"\$\s*([\d,]+)\s*k?\s*/?\s*(?:yr|year|annual)",  # $42k/yr, $42,000/year
-        r"\$\s*([\d,]+)\s*k\b",  # $42k
-        r"\$\s*([\d,]+)\b",  # $42000
-        r"([\d,]+)\s*(?:income|salary|earn)",  # 42000 income
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, profile, re.IGNORECASE)
+    for pattern in _INCOME_PATTERNS:
+        match = pattern.search(profile)
         if match:
             raw = match.group(1).replace(",", "")
             try:
@@ -1043,7 +1109,7 @@ def _parse_income(args: dict[str, Any]) -> int:
                 income *= 1000
             return income
 
-    logger.debug("No income found in profile, using default %d", DEFAULT_INCOME)
+    logger.warning("No income found in profile, using default %d — results may be inaccurate", DEFAULT_INCOME)
     return DEFAULT_INCOME
 
 
@@ -1087,7 +1153,7 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
                 url_entries[url] = source_type
 
     # Extract verification summary from evidence-verification phase
-    verify_text = phase_outputs.get("evidence-verification", "")
+    verify_text = phase_outputs.get("evidence-verify", phase_outputs.get("evidence-verification", ""))
     verify_summary = ""
     for line in verify_text.split("\n"):
         if "checks performed" in line.lower() or "total checks" in line.lower():
@@ -1101,11 +1167,16 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
 
     parts = ["## Sources & References"]
     parts.append("")
-    parts.append(
-        "All claims in this analysis can be independently verified using the "
-        "sources below. The Evidence Verification phase audited every data point "
-        "against official reference tables."
-    )
+    if verify_summary:
+        parts.append(
+            "All claims in this analysis can be independently verified using the "
+            "sources below. The Evidence Verification phase audited every data point "
+            "against official reference tables."
+        )
+    else:
+        parts.append(
+            "The following sources were cited in this analysis."
+        )
 
     if verify_summary:
         parts.append("")
