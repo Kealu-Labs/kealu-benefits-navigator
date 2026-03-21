@@ -21,7 +21,7 @@ def test_initialized_notification():
     pass
 
 
-@scenario("../features/mcp_protocol.feature", "Tools list returns all three navigator tools")
+@scenario("../features/mcp_protocol.feature", "Tools list returns all navigator tools")
 def test_tools_list():
     pass
 

@@ -213,6 +213,51 @@ _TOOLS = [
             "required": ["household_profile", "zip_code"],
         },
     },
+    {
+        "name": "generate_application_draft",
+        "description": (
+            "Generate a pre-filled PDF application draft for benefit programs the "
+            "user is eligible for. Call this AFTER navigate_benefits has returned "
+            "results. The PDF is a DRAFT for the user to review — it pre-fills "
+            "known fields (income, household size, location, eligible programs, "
+            "required documents) and leaves sensitive fields blank (SSN, DOB). "
+            "Returns the file path to the generated PDF."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "household_profile": {
+                    "type": "string",
+                    "description": "Household details (same as navigate_benefits)",
+                },
+                "state": {
+                    "type": "string",
+                    "description": "US state",
+                },
+                "zip_code": {
+                    "type": "string",
+                    "description": "5-digit ZIP code",
+                },
+                "income_type": {
+                    "type": "string",
+                    "description": "Employment, self-employment, unemployment, etc.",
+                },
+                "health_needs": {
+                    "type": "string",
+                    "description": "Health conditions and needs",
+                },
+                "workflow_output": {
+                    "type": "string",
+                    "description": (
+                        "The full text output from navigate_benefits. Pass the "
+                        "complete analysis so the PDF can extract eligible programs "
+                        "and document requirements."
+                    ),
+                },
+            },
+            "required": ["household_profile", "workflow_output"],
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -235,6 +280,8 @@ def _execute_tool(name: str, arguments: dict[str, Any], *, progress_token: str |
         return _run_eligibility_check(arguments)
     if name == "compare_insurance_plans":
         return _run_insurance_comparison(arguments)
+    if name == "generate_application_draft":
+        return _run_generate_application_draft(arguments)
     return f"Unknown tool: {name}"
 
 
@@ -934,6 +981,35 @@ def _parse_income(args: dict[str, Any]) -> int:
             return income
 
     return 30000  # conservative default for benefit eligibility
+
+
+def _run_generate_application_draft(args: dict[str, Any]) -> str:
+    """Generate a pre-filled PDF application draft from workflow output."""
+    try:
+        from benefit_navigator.pdf_generator import generate_application_pdf
+
+        workflow_output = args.get("workflow_output", "")
+        if not workflow_output:
+            return (
+                "Missing workflow_output. Run navigate_benefits first, then pass "
+                "its full output as the workflow_output parameter."
+            )
+
+        path = generate_application_pdf(args, workflow_output)
+        return (
+            f"Application draft PDF generated successfully.\n\n"
+            f"**File:** `{path}`\n\n"
+            f"**Next steps for the applicant:**\n"
+            f"1. Open the PDF and review all pre-filled information\n"
+            f"2. Fill in blank fields (name, date of birth, SSN, signature)\n"
+            f"3. Gather the documents listed in the checklist\n"
+            f"4. Submit applications through the program-specific portals listed "
+            f"in the Application Directory section of your benefits analysis\n\n"
+            f"*This is a DRAFT — verify all information before submitting.*"
+        )
+    except Exception as e:
+        logger.exception("PDF generation failed")
+        return f"Error generating application draft: {e}"
 
 
 def _collect_output(result: dict) -> str:
