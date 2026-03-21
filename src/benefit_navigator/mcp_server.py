@@ -3,13 +3,13 @@
 Uses only the Python standard library (stdin/stdout JSON-RPC 2.0) so it
 adds **zero** new dependencies.
 
-Antigravity ``mcp_config.json`` entry::
+Example ``mcp_config.json`` entry::
 
     {
       "mcpServers": {
         "benefit-navigator": {
-          "command": "/path/to/.venv/bin/python",
-          "args": ["-m", "benefit_navigator"],
+          "command": "/bin/zsh",
+          "args": ["-c", "set -a && source ~/.env && set +a && exec /path/to/.venv/bin/python -m benefit_navigator"],
           "cwd": "/path/to/kealu-benefit-navigator"
         }
       }
@@ -20,12 +20,30 @@ MCP protocol reference: https://modelcontextprotocol.io/specification
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
+import os
+import re
+import shutil
+import signal
+import subprocess
 import sys
+import uuid
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+MAX_HOUSEHOLD_SIZE = 20
+DEFAULT_ADULT_AGE = 30
+DEFAULT_CHILD_AGE = 8
+DEFAULT_INCOME = 30_000
+KVR_TIMEOUT = int(os.environ.get("KVR_TIMEOUT", "120"))
 
 # ---------------------------------------------------------------------------
 # Tool definitions
@@ -123,9 +141,9 @@ _TOOLS = [
                     "description": "Anticipated raise, job change, or income reduction",
                 },
                 "skip_intake": {
-                    "type": "string",
+                    "type": "boolean",
                     "description": (
-                        "Set to 'true' to skip intake questions and run the analysis "
+                        "Set to true to skip intake questions and run the analysis "
                         "with whatever data is available. Use after the user has answered "
                         "follow-up questions, or if the user wants to proceed without "
                         "providing additional details."
@@ -213,79 +231,82 @@ _TOOLS = [
             "required": ["household_profile", "zip_code"],
         },
     },
-    {
-        "name": "generate_application_draft",
-        "description": (
-            "Generate a pre-filled PDF application for benefit programs. "
-            "For states with official fillable forms (e.g. California SAWS-1), "
-            "fills the actual government form. For other states, generates an "
-            "Application Preparation Worksheet. Call AFTER navigate_benefits. "
-            "Returns the file path to the generated PDF."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "household_profile": {
-                    "type": "string",
-                    "description": "Household details (same as navigate_benefits)",
-                },
-                "state": {
-                    "type": "string",
-                    "description": "US state (e.g. 'California', 'TX')",
-                },
-                "zip_code": {
-                    "type": "string",
-                    "description": "5-digit ZIP code",
-                },
-                "county": {
-                    "type": "string",
-                    "description": "County name (e.g. 'Los Angeles County')",
-                },
-                "income_type": {
-                    "type": "string",
-                    "description": "Employment, self-employment, unemployment, etc.",
-                },
-                "health_needs": {
-                    "type": "string",
-                    "description": "Health conditions and needs",
-                },
-                "workflow_output": {
-                    "type": "string",
-                    "description": (
-                        "The full text output from navigate_benefits. Pass the "
-                        "complete analysis so the PDF can extract eligible programs "
-                        "and document requirements."
-                    ),
-                },
-            },
-            "required": ["household_profile", "workflow_output"],
-        },
-    },
 ]
+
+# ---------------------------------------------------------------------------
+# Audit logging
+# ---------------------------------------------------------------------------
+
+
+def _audit_log(action: str, resource: str, outcome: str, *, details: dict[str, Any] | None = None) -> None:
+    """Emit a structured audit event for data access and tool invocations."""
+    event = {
+        "audit": True,
+        "action": action,
+        "resource": resource,
+        "outcome": outcome,
+    }
+    if details:
+        event["details"] = details
+    logger.info("AUDIT %s", json.dumps(event, default=str))
+
+
+# ---------------------------------------------------------------------------
+# kvr resolution
+# ---------------------------------------------------------------------------
+
+
+def _resolve_kvr() -> str:
+    """Resolve the kvr binary path, raising RuntimeError if not found."""
+    path = shutil.which("kvr")
+    if not path:
+        raise RuntimeError(
+            "kvr not found on PATH. Install Kealu Vector CLI (https://kealu.com) "
+            "and ensure 'kvr' is available in your shell PATH."
+        )
+    return path
+
 
 # ---------------------------------------------------------------------------
 # Tool execution
 # ---------------------------------------------------------------------------
 
+_TOOL_DISPATCH: dict[str, Any] = {}  # populated after function definitions
+
 
 def _execute_tool(name: str, arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
-    """Execute a tool by running the corresponding Vector workflow.
+    """Execute a tool by name via dispatch table.
 
     Returns the workflow output as a string.
     """
-    if name == "navigate_benefits":
-        if arguments.get("skip_intake") != "true":
-            missing = _check_intake_completeness(arguments)
-            if missing:
-                return missing
-        return _run_benefit_navigator(arguments, progress_token=progress_token)
-    if name == "check_eligibility":
-        return _run_eligibility_check(arguments)
-    if name == "compare_insurance_plans":
-        return _run_insurance_comparison(arguments)
-    if name == "generate_application_draft":
-        return _run_generate_application_draft(arguments)
-    return f"Unknown tool: {name}"
+    _audit_log("tool_call", name, "started", details={"has_zip": bool(arguments.get("zip_code"))})
+    handler = _TOOL_DISPATCH.get(name)
+    if handler is None:
+        _audit_log("tool_call", name, "error", details={"reason": "unknown_tool"})
+        return f"Unknown tool: {name}"
+    try:
+        result = handler(arguments, progress_token=progress_token)
+        _audit_log("tool_call", name, "completed")
+        return result
+    except Exception as e:
+        _audit_log("tool_call", name, "error", details={"error": str(e)})
+        raise
+
+
+def _handle_navigate_benefits(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+    if not arguments.get("skip_intake"):
+        missing = _check_intake_completeness(arguments)
+        if missing:
+            return missing
+    return _run_benefit_navigator(arguments, progress_token=progress_token)
+
+
+def _handle_check_eligibility(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+    return _run_eligibility_check(arguments)
+
+
+def _handle_compare_insurance(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+    return _run_insurance_comparison(arguments)
 
 
 # ---------------------------------------------------------------------------
@@ -518,8 +539,6 @@ def _check_intake_completeness(args: dict[str, Any]) -> str | None:
 
 def _contains_zip(text: str) -> bool:
     """Check if text contains something that looks like a US ZIP code."""
-    import re
-
     return bool(re.search(r"\b\d{5}(?:-\d{4})?\b", text))
 
 
@@ -572,7 +591,7 @@ def _format_intake_response(
         lines.append(
             "**Note:** You can call this tool again with the additional details "
             "for a personalized analysis, or call it again with the same data to "
-            'proceed with a general analysis. Add `skip_intake` = "true" to skip '
+            "proceed with a general analysis. Add `skip_intake` = true to skip "
             "these questions and run immediately with available data."
         )
 
@@ -582,14 +601,8 @@ def _format_intake_response(
 
 def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None = None) -> str:
     """Run the full benefit-navigator workflow with optional progress streaming."""
-    import json
-    import shutil
-    import subprocess
-    import uuid
-    from pathlib import Path
-
     try:
-        kvr = shutil.which("kvr") or "/Users/sempi/.local/bin/kvr"
+        kvr = _resolve_kvr()
         run_id = f"mcp-navigator-{uuid.uuid4().hex[:8]}"
 
         cmd = [
@@ -629,7 +642,7 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             if val:
                 cmd.extend(["--var", f"{key}={val}"])
 
-        logger.info("Running: %s", " ".join(cmd))
+        logger.info("Running benefit-navigator run_id=%s", run_id)
 
         if progress_token:
             # Stream mode: read phase events in real time
@@ -669,6 +682,12 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
                         name = "-".join(phase_dir.name.split("-")[1:])
                         phase_outputs[name] = output_file.read_text()
 
+        # Clean up run directory to avoid PII accumulation
+        try:
+            shutil.rmtree(run_dir)
+        except OSError:
+            logger.debug("Could not clean up run directory at %s", run_dir)
+
         return _collect_output({"phase_outputs": phase_outputs})
     except Exception as e:
         logger.exception("benefit-navigator workflow failed")
@@ -684,8 +703,6 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
     Reads stdout line by line. Lines prefixed with [PHASE_STREAM] are parsed
     as phase events and translated to MCP notifications/progress messages.
     """
-    import subprocess
-
     completed_phases = 0
     total_phases = 0
 
@@ -699,6 +716,7 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
             try:
                 event = json.loads(line[len(_PHASE_STREAM_PREFIX):])
             except json.JSONDecodeError:
+                logger.warning("Malformed phase-stream JSON: %s", line[:200])
                 continue
 
             event_type = event.get("event_type", "")
@@ -744,10 +762,6 @@ def _send_progress(token: str, progress: int, total: int, message: str) -> None:
 
 def _run_eligibility_check(args: dict[str, Any]) -> str:
     """Run eligibility check, enriched with real CMS data when available."""
-    import os
-    import shutil
-    import subprocess
-
     enrichment = ""
 
     # Try to enrich with real CMS Marketplace data
@@ -762,13 +776,11 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             zip_code = args.get("zip_code", "")
             if not zip_code:
                 # Try to extract from profile
-                import re
-
                 m = re.search(r"\b(\d{5})\b", args.get("household_profile", ""))
                 if m:
                     zip_code = m.group(1)
 
-            if zip_code:
+            if zip_code and re.fullmatch(r"\d{5}", zip_code):
                 county_data = resolve_county(zip_code)
                 counties = county_data.get("counties", [])
                 if counties:
@@ -806,7 +818,7 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
                                     )
                                 lines.append("")
                         except Exception:
-                            pass
+                            logger.debug("Medicaid enrichment failed for state %s", state, exc_info=True)
 
                         enrichment = "\n".join(lines) + "\n---\n\n"
         except Exception:
@@ -814,7 +826,7 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
 
     # Always run kvr assist for the detailed analysis
     try:
-        kvr = shutil.which("kvr") or "/Users/sempi/.local/bin/kvr"
+        kvr = _resolve_kvr()
         task = (
             f"Check eligibility for {args.get('program', 'unknown program')} "
             f"for this household: {args.get('household_profile', '')}. "
@@ -824,7 +836,7 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             [kvr, "assist", "--spawn", task],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=KVR_TIMEOUT,
         )
         assist_output = result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
         return enrichment + assist_output
@@ -838,11 +850,12 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
 
     Falls back to kvr assist if the API is unavailable or CMS_API_KEY is not set.
     """
-    import os
-
     zip_code = args.get("zip_code", "")
     if not zip_code:
         return "ZIP code is required for insurance plan comparison."
+
+    if not re.fullmatch(r"\d{5}", zip_code):
+        return f"Invalid ZIP code format: {zip_code!r} (expected 5 digits, e.g. '77001')."
 
     # If no API key, fall back to kvr assist
     if not os.environ.get("CMS_API_KEY"):
@@ -870,15 +883,18 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
         people = _parse_household_for_api(args)
         income = _parse_income(args)
 
-        # Step 3: Get eligibility estimates (APTC, CSR)
+        # Step 3 & 4: Get eligibility and search plans in parallel
         eligibility = None
-        try:
-            eligibility = estimate_eligibility(income, people, state, fips, zip_code)
-        except Exception:
-            logger.warning("Eligibility estimate failed — continuing without APTC", exc_info=True)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            elig_future = executor.submit(estimate_eligibility, income, people, state, fips, zip_code)
+            plans_future = executor.submit(search_plans, income, people, fips, state, zip_code)
 
-        # Step 4: Search real plans
-        result = search_plans(income, people, fips, state, zip_code)
+            try:
+                eligibility = elig_future.result()
+            except Exception:
+                logger.warning("Eligibility estimate failed — continuing without APTC", exc_info=True)
+
+            result = plans_future.result()
 
         return format_plans_summary(result, eligibility)
 
@@ -892,24 +908,20 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
 
 def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
     """Fallback: run insurance comparison via kvr assist."""
-    import shutil
-    import subprocess
-
     try:
-        kvr = shutil.which("kvr") or "/Users/sempi/.local/bin/kvr"
+        kvr = _resolve_kvr()
         task = (
             f"Compare all insurance options (ACA marketplace, off-marketplace, "
             f"short-term, health sharing, ICHRA/QSEHRA) for zip code "
             f"{args.get('zip_code', 'unknown')}. "
             f"Household: {args.get('household_profile', '')}. "
-            f"Special needs: {args.get('special_needs', 'none specified')}. "
             f"Use the benefit-navigator context for insurance channel reference."
         )
         result = subprocess.run(
             [kvr, "assist", "--spawn", task],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=KVR_TIMEOUT,
         )
         return result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
     except Exception as e:
@@ -919,10 +931,24 @@ def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
 
 def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse household_profile text into CMS API people list."""
-    import re
-
     profile = args.get("household_profile", "")
+    profile_lower = profile.lower()
     people: list[dict[str, Any]] = []
+
+    # Detect gender hints from profile text
+    has_male_hint = any(
+        marker in profile_lower
+        for marker in ["husband", "father", "dad", "male", "man ", "boy", "son "]
+    )
+    has_female_hint = any(
+        marker in profile_lower
+        for marker in ["wife", "mother", "mom", "female", "woman", "girl", "daughter"]
+    )
+
+    # Determine primary applicant gender from context
+    primary_gender = "Female"  # CMS API default
+    if has_male_hint and not has_female_hint:
+        primary_gender = "Male"
 
     # Extract ages from profile text
     age_patterns = [
@@ -933,27 +959,33 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
     child_ages = []
-    adult_age = 30  # default
+    adult_age = DEFAULT_ADULT_AGE
 
     for pattern in age_patterns:
         matches = re.findall(pattern, profile, re.IGNORECASE)
         for match in matches:
             if isinstance(match, tuple):
                 for age_str in match:
-                    age = int(age_str)
+                    try:
+                        age = int(age_str)
+                    except ValueError:
+                        continue
                     if age < 19:
                         child_ages.append(age)
                     else:
                         adult_age = age
             else:
-                age = int(match)
+                try:
+                    age = int(match)
+                except ValueError:
+                    continue
                 if age < 19:
                     child_ages.append(age)
                 else:
                     adult_age = age
 
     # Primary applicant
-    people.append({"age": adult_age, "gender": "Female", "uses_tobacco": False})
+    people.append({"age": adult_age, "gender": primary_gender, "uses_tobacco": False})
 
     # Children
     for age in child_ages:
@@ -962,24 +994,33 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
     # If "family of N" or "household of N" mentioned, pad to that size
     size_match = re.search(r"(?:family|household)\s+of\s+(\d+)", profile, re.IGNORECASE)
     if size_match:
-        target = int(size_match.group(1))
+        try:
+            target = int(size_match.group(1))
+        except ValueError:
+            target = len(people)
+        target = min(target, MAX_HOUSEHOLD_SIZE)
         while len(people) < target:
-            people.append({"age": 30, "gender": "Female", "uses_tobacco": False})
+            people.append({"age": DEFAULT_ADULT_AGE, "gender": "Female", "uses_tobacco": False})
 
     # If we only have 1 person but "kids" or "children" are mentioned, add defaults
     kid_match = re.search(r"(\d+)\s*kid|(\d+)\s*child", profile, re.IGNORECASE)
     if kid_match and not child_ages:
-        n_kids = int(kid_match.group(1) or kid_match.group(2))
+        try:
+            n_kids = int(kid_match.group(1) or kid_match.group(2))
+        except ValueError:
+            n_kids = 0
+        n_kids = min(n_kids, MAX_HOUSEHOLD_SIZE - len(people))
         for _ in range(n_kids):
-            people.append({"age": 8, "gender": "Female", "uses_tobacco": False})
+            people.append({"age": DEFAULT_CHILD_AGE, "gender": "Female", "uses_tobacco": False})
+
+    # Cap total household size
+    people = people[:MAX_HOUSEHOLD_SIZE]
 
     return people
 
 
 def _parse_income(args: dict[str, Any]) -> int:
     """Parse income from args, with fallback extraction from household_profile."""
-    import re
-
     profile = args.get("household_profile", "")
 
     # Try explicit patterns
@@ -993,97 +1034,17 @@ def _parse_income(args: dict[str, Any]) -> int:
         match = re.search(pattern, profile, re.IGNORECASE)
         if match:
             raw = match.group(1).replace(",", "")
-            income = int(raw)
+            try:
+                income = int(raw)
+            except ValueError:
+                continue
             # If it looks like shorthand (42 = $42k), multiply
             if income < 1000:
                 income *= 1000
             return income
 
-    return 30000  # conservative default for benefit eligibility
-
-
-def _run_generate_application_draft(args: dict[str, Any]) -> str:
-    """Generate a pre-filled PDF application from workflow output."""
-    try:
-        from benefit_navigator.form_filler import generate_application
-
-        workflow_output = args.get("workflow_output", "")
-        if not workflow_output:
-            return (
-                "Missing workflow_output. Run navigate_benefits first, then pass "
-                "its full output as the workflow_output parameter."
-            )
-
-        # Normalize state to 2-letter code for form registry lookup
-        _normalize_state(args)
-
-        path, form_type = generate_application(args, workflow_output)
-
-        if form_type == "official":
-            return (
-                f"Official state application form filled successfully.\n\n"
-                f"**Form:** Pre-filled government application\n"
-                f"**File:** `{path}`\n\n"
-                f"**What was pre-filled:**\n"
-                f"- State, ZIP code, county, and date\n"
-                f"- Eligible program checkboxes\n"
-                f"- Language preferences\n\n"
-                f"**Next steps for the applicant:**\n"
-                f"1. Open the PDF and review all pre-filled fields\n"
-                f"2. Fill in personal details (name, DOB, SSN, address)\n"
-                f"3. Complete remaining sections\n"
-                f"4. Sign, date, and submit to your local county office\n\n"
-                f"*This is a pre-filled DRAFT — review all fields before submitting.*"
-            )
-
-        return (
-            f"Application Preparation Worksheet generated.\n\n"
-            f"**File:** `{path}`\n\n"
-            f"No official fillable form is available for this state, so an "
-            f"Application Preparation Worksheet was generated instead. "
-            f"Use it as a reference when filling out the official application.\n\n"
-            f"**Next steps for the applicant:**\n"
-            f"1. Open the PDF and review all pre-filled information\n"
-            f"2. Visit the program-specific portals to access official forms\n"
-            f"3. Use the worksheet to fill in the official application\n"
-            f"4. Gather the documents listed in the checklist\n\n"
-            f"*This is a DRAFT — verify all information before submitting.*"
-        )
-    except Exception as e:
-        logger.exception("PDF generation failed")
-        return f"Error generating application draft: {e}"
-
-
-# State name → 2-letter code mapping for form registry lookup
-_STATE_CODES: dict[str, str] = {
-    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
-    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
-    "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
-    "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
-    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
-    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN",
-    "mississippi": "MS", "missouri": "MO", "montana": "MT", "nebraska": "NE",
-    "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ",
-    "new mexico": "NM", "new york": "NY", "north carolina": "NC",
-    "north dakota": "ND", "ohio": "OH", "oklahoma": "OK", "oregon": "OR",
-    "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
-    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
-    "vermont": "VT", "virginia": "VA", "washington": "WA",
-    "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
-}
-
-
-def _normalize_state(args: dict[str, Any]) -> None:
-    """Normalize state field to 2-letter code in-place."""
-    state = (args.get("state") or "").strip()
-    if not state:
-        return
-    if len(state) == 2:
-        args["state"] = state.upper()
-        return
-    code = _STATE_CODES.get(state.lower())
-    if code:
-        args["state"] = code
+    logger.debug("No income found in profile, using default %d", DEFAULT_INCOME)
+    return DEFAULT_INCOME
 
 
 def _collect_output(result: dict) -> str:
@@ -1106,7 +1067,6 @@ def _collect_output(result: dict) -> str:
 
 def _build_sources_section(phase_outputs: dict[str, str]) -> str:
     """Extract all cited URLs and verification statuses into a consolidated section."""
-    import re
     from collections import OrderedDict
 
     all_text = "\n".join(phase_outputs.values())
@@ -1118,7 +1078,6 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
         for url in urls:
             url = url.rstrip(".,;:")
             if url not in url_entries:
-                # Classify source type
                 if ".gov" in url:
                     source_type = ".gov (official)"
                 elif any(d in url for d in [".org", ".edu"]):
@@ -1132,7 +1091,6 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
     verify_summary = ""
     for line in verify_text.split("\n"):
         if "checks performed" in line.lower() or "total checks" in line.lower():
-            # Clean markdown formatting and leading labels
             verify_summary = re.sub(
                 r"^[#*\s]*(?:SUMMARY:\s*)?", "", line,
             ).strip()
@@ -1160,14 +1118,12 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
         parts.append("| Source | Type |")
         parts.append("|--------|------|")
 
-        # Deduplicate by domain, keep most specific URL per domain
         seen_domains: dict[str, list[tuple[str, str]]] = {}
         for url, stype in url_entries.items():
             domain = re.sub(r"https?://(?:www\.)?", "", url).split("/")[0]
             seen_domains.setdefault(domain, []).append((url, stype))
 
         for domain, entries in seen_domains.items():
-            # Show the most specific (longest) URL per domain
             best_url, best_type = max(entries, key=lambda e: len(e[0]))
             parts.append(f"| [{domain}]({best_url}) | {best_type} |")
 
@@ -1179,6 +1135,14 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
     )
 
     return "\n".join(parts)
+
+
+# Populate dispatch table now that handlers are defined
+_TOOL_DISPATCH.update({
+    "navigate_benefits": _handle_navigate_benefits,
+    "check_eligibility": _handle_check_eligibility,
+    "compare_insurance_plans": _handle_compare_insurance,
+})
 
 
 # ---------------------------------------------------------------------------
@@ -1248,6 +1212,15 @@ def _jsonrpc_result(req_id: Any, result: Any) -> dict:
 # Stdio transport
 # ---------------------------------------------------------------------------
 
+_shutdown_requested = False
+
+
+def _handle_sigterm(signum: int, frame: Any) -> None:
+    """Handle SIGTERM for graceful shutdown."""
+    global _shutdown_requested
+    _shutdown_requested = True
+    logger.info("SIGTERM received, shutting down gracefully")
+
 
 def main() -> None:
     """Run the MCP server on stdin/stdout.
@@ -1259,11 +1232,23 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         stream=sys.stderr,
-        format="%(levelname)s %(name)s: %(message)s",
+        format='{"level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
     )
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
+    # Startup validation
+    if not shutil.which("kvr"):
+        logger.warning("kvr not found on PATH — navigate_benefits and check_eligibility will fail")
+    if not os.environ.get("CMS_API_KEY"):
+        logger.warning("CMS_API_KEY not set — marketplace API features unavailable")
+
     logger.info("Benefit Navigator MCP server starting (stdio transport)")
 
     for line in sys.stdin:
+        if _shutdown_requested:
+            break
+
         line = line.strip()
         if not line:
             continue

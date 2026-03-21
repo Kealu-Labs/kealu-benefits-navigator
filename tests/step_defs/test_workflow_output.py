@@ -249,11 +249,12 @@ def check_contains_either_2(ctx, text, alt_text):
 @then("the response mentions SNAP eligibility revision")
 def check_snap_revision(ctx):
     lower = ctx.result.lower()
-    assert any(phrase in lower for phrase in [
-        "snap eligibility revised",
-        "snap" and "not eligible",
-        "snap" and "unlikely",
-    ]), "No SNAP eligibility revision found"
+    has_snap_revision = (
+        "snap eligibility revised" in lower
+        or ("snap" in lower and "not eligible" in lower)
+        or ("snap" in lower and "unlikely" in lower)
+    )
+    assert has_snap_revision, "No SNAP eligibility revision found"
 
 
 @then(parsers.parse('the response contains "ELIGIBLE" for CHIP'))
