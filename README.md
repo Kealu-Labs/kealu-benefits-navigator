@@ -69,7 +69,7 @@ Benefits navigation involves sensitive personal information — income, househol
 - **Auditable outputs** — every determination cites its source (`.gov` URL, FPL table reference, or explicit "unverified" classification). Users can verify claims before acting.
 - **No training on user data** — Gemini API calls do not use input data for model training.
 
-- **Tamper-proof decision logs** — every prompt, agent output, quality gate result, and cost is recorded in append-only JSONL logs, encrypted (RSA+AES) and cryptographically sealed. No one can alter an eligibility determination after the fact. If a user disputes a recommendation, the full reasoning chain is reconstructable.
+- **Decision logs** — every prompt, agent output, quality gate result, and cost is recorded in append-only JSONL logs. If a user disputes a recommendation, the full reasoning chain is reconstructable. In a production deployment, Vector's enterprise features add encryption (RSA+AES) and cryptographic sealing for tamper-proof audit trails.
 
 In a production deployment, Vector's enterprise features add further controls: data sovereignty zones (restricting which data reaches which model endpoints) and role-based access to audit trails.
 
@@ -171,7 +171,7 @@ kvr run benefit-navigator \
 | Tool | Data source | Description |
 |------|-------------|-------------|
 | `navigate_benefits` | Vector 5-phase workflow | Full analysis with guided intake flow |
-| `check_eligibility` | CMS API + Vector | Single-program eligibility check, enriched with live APTC/FPL/Medicaid data |
+| `check_eligibility` | CMS API + Vector | Single-program eligibility check, enriched with live APTC/FPL/Medicaid data. Accepts optional `zip_code` for county/state resolution. |
 | `compare_insurance_plans` | CMS Marketplace API | Real plan names, premiums, deductibles, and subsidy calculations from Healthcare.gov |
 | `generate_application_draft` | Official forms + local PDF | Fills real government forms (CA SAWS-1) or generates preparation worksheets |
 
