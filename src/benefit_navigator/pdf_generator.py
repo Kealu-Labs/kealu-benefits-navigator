@@ -358,14 +358,20 @@ def _parse_household_from_args(args: dict[str, Any]) -> dict[str, Any]:
     if args.get("state"):
         household["state"] = args["state"]
 
-    # Extract income
-    income_match = re.search(r"\$?([\d,]+)\s*(?:k|K|/yr|/year|annual|yearly)?", profile)
+    # Extract income — require $ prefix or k/K suffix to avoid false matches
+    income_match = re.search(
+        r"\$\s*([\d,]+)\s*(?:k|K|/yr|/year|annual|yearly)?"
+        r"|(\d[\d,]*)\s*(?:k|K)\b"
+        r"|(\d[\d,]+)\s*/(?:yr|year|month|mo)\b",
+        profile,
+    )
     if income_match:
-        raw = income_match.group(1).replace(",", "")
-        amount = int(raw)
-        if amount < 1000:
-            amount *= 1000  # "42k" -> 42000
-        household["income"] = f"{amount:,}"
+        raw = (income_match.group(1) or income_match.group(2) or income_match.group(3) or "").replace(",", "")
+        if raw:
+            amount = int(raw)
+            if amount < 1000:
+                amount *= 1000  # "42k" -> 42000
+            household["income"] = f"{amount:,}"
 
     # Extract household size
     size_match = re.search(
