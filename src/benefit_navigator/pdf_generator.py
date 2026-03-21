@@ -23,8 +23,9 @@ class _PdfWriter:
     """Minimal PDF writer that supports text pages with basic formatting."""
 
     def __init__(self) -> None:
-        self._objects: list[bytes] = []  # 1-indexed (slot 0 unused)
-        self._objects.append(b"")  # placeholder so objects are 1-indexed
+        # Slots: 0=unused, 1=reserved(Pages), 2=reserved(Font)
+        # Pre-allocate so add_page() starts at obj 3+
+        self._objects: list[bytes] = [b"", b"", b""]
         self._pages: list[int] = []
 
     def _add_obj(self, data: bytes) -> int:
@@ -54,27 +55,23 @@ class _PdfWriter:
         )
 
         page_obj = self._add_obj(
-            b"<< /Type /Page /Parent 2 0 R"
+            b"<< /Type /Page /Parent 1 0 R"
             b" /MediaBox [0 0 612 792]"
             b" /Contents " + str(stream_obj).encode() + b" 0 R"
-            b" /Resources << /Font << /F1 3 0 R >> >> >>"
+            b" /Resources << /Font << /F1 2 0 R >> >> >>"
         )
         self._pages.append(page_obj)
 
     def write(self, path: Path) -> None:
         """Write the PDF to *path*."""
-        # Object 2 = Pages, Object 3 = Font (Helvetica)
-        # Reserve slots 2 and 3 if not yet used.
-        while len(self._objects) < 4:
-            self._objects.append(b"")
-
+        # Slot 1 = Pages, Slot 2 = Font (reserved in __init__)
         kids = " ".join(f"{p} 0 R" for p in self._pages)
-        self._objects[2] = (
+        self._objects[1] = (
             f"<< /Type /Pages /Kids [{kids}] /Count {len(self._pages)} >>".encode()
         )
-        self._objects[3] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+        self._objects[2] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
 
-        catalog = self._add_obj(b"<< /Type /Catalog /Pages 2 0 R >>")
+        catalog = self._add_obj(b"<< /Type /Catalog /Pages 1 0 R >>")
 
         # Serialize
         buf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
