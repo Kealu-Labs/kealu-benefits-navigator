@@ -142,11 +142,11 @@ def generate_and_read(ctx):
 
 @then("a PDF file is created on disk")
 def check_file_exists(ctx):
-    # The tool result contains the file path
-    assert "benefit-application-draft" in ctx.result
+    # The tool result contains a file path (either official or worksheet)
+    assert "benefit-application" in ctx.result
     # Extract path from result
     for line in ctx.result.split("\n"):
-        if "benefit-application-draft" in line and ".pdf" in line:
+        if "benefit-application" in line and ".pdf" in line:
             # Path is between backticks
             start = line.find("`") + 1
             end = line.rfind("`")
@@ -157,7 +157,7 @@ def check_file_exists(ctx):
                 ctx.pdf_bytes = path.read_bytes()
                 return
     # If we can't extract path, at least verify the result mentions success
-    assert "generated successfully" in ctx.result.lower() or "File:" in ctx.result
+    assert "generated" in ctx.result.lower() or "File:" in ctx.result
 
 
 @then("the PDF starts with a valid header")
@@ -175,7 +175,7 @@ def check_page_count(ctx):
 @then("the tool result mentions the file path")
 def check_path_in_result(ctx):
     assert ".pdf" in ctx.result
-    assert "benefit-application-draft" in ctx.result
+    assert "benefit-application" in ctx.result
 
 
 @then("the tool result includes review instructions")

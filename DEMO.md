@@ -28,7 +28,7 @@ Paste each prompt after the previous response completes.
 
 ### Prompt 1 — Opening
 
-> What benefits and health insurance options are available for my family in Houston?
+> What benefits and health insurance options are available for my family in Los Angeles?
 
 **What happens:** Triggers tool discovery and tier-1 intake. The MCP server returns follow-up questions (ZIP, income, household) instead of generic advice.
 
@@ -36,13 +36,13 @@ Paste each prompt after the previous response completes.
 
 ### Prompt 2 — Full Profile
 
-> My ZIP is 77001. I make $42,000/year as a W-2 employee. It's me and my two kids, ages 4 and 9. I lost my employer health insurance about 6 weeks ago — they offered COBRA but it's $1,400/month, way too expensive. My son takes Zyrtec daily for allergies and I take Lisinopril 10mg for blood pressure. We see Dr. Sarah Chen at Texas Children's Pediatrics and I see Dr. James Park at Kelsey-Seybold. I'd like to keep both doctors. I can afford maybe $250-300/month for premiums. My 4-year-old has asthma so we need good urgent care and ER coverage.
+> My ZIP is 90001, Los Angeles County. I make $42,000/year as a W-2 employee. It's me and my two kids, ages 4 and 9. I lost my employer health insurance about 6 weeks ago — they offered COBRA but it's $1,400/month, way too expensive. My son takes Zyrtec daily for allergies and I take Lisinopril 10mg for blood pressure. We see Dr. Sarah Chen at Children's Hospital Los Angeles and I see Dr. James Park at Kaiser Permanente. I'd like to keep both doctors. I can afford maybe $250-300/month for premiums. My 4-year-old has asthma so we need good urgent care and ER coverage.
 
 **What happens:** Hits all intake tiers, triggers the full 5-phase parallel workflow — benefits research, insurance research, evidence verification, eligibility validation, and action plan.
 
 **What to highlight:**
 - SEP urgency detection (6 weeks ago = ~2 weeks left on 60-day window)
-- Texas non-expansion Medicaid coverage gap identified
+- California Medicaid expansion — Medi-Cal eligibility for the full household
 - Adversarial evidence verification catches and corrects FPL calculation
 - Prioritized action plan with .gov URLs and deadlines
 
@@ -60,28 +60,29 @@ Paste each prompt after the previous response completes.
 
 ### Prompt 4 — Eligibility Check (CMS Enrichment)
 
-> Am I eligible for CHIP for my kids?
+> Am I eligible for Medi-Cal for my kids?
 
 **What happens:** CMS API provides live APTC/FPL/Medicaid data, layered on top of Vector's AI analysis with FPL tables and state-specific rules.
 
 **What to highlight:**
 - Live FPL percentage from CMS
-- State Medicaid thresholds from CMS
+- State Medicaid thresholds from CMS (California is an expansion state)
 - Vector analysis cross-references against program-specific rules
 - Two data sources (live API + AI analysis) producing a verified answer
 
-### Prompt 5 — Application Draft (PDF Generation)
+### Prompt 5 — Official Form Filling (Pre-filled SAWS-1)
 
 > Can you generate a draft application for the programs I qualify for?
 
-**What happens:** Calls `generate_application_draft` with the household profile and workflow output. Generates a pre-filled PDF with applicant info, eligible programs, household members, and a required documents checklist. Saves to disk and returns the file path.
+**What happens:** Detects California has an official fillable form (SAWS-1 for CalFresh/Medi-Cal/CalWORKs). Fills the real government form's AcroForm fields (state, ZIP, county, date, language) and checks the correct program checkboxes based on eligibility results. Saves the pre-filled PDF to disk.
 
 **What to highlight:**
-- **AI took action** — didn't just advise, produced a tangible artifact
-- PDF pre-fills known fields (income, ZIP, household size, eligible programs)
-- Sensitive fields (SSN, DOB) left blank for manual completion
-- Documents checklist extracted from the workflow analysis
-- Zero dependencies — PDF generated using raw PDF 1.4 spec, no pip packages
+- **Fills the actual government form** — not a generic worksheet, the real SAWS-1
+- Program checkboxes (CalFresh, Medi-Cal) are pre-checked based on eligibility analysis
+- State, ZIP, county, date, and language fields pre-filled
+- Sensitive fields (SSN, DOB, name) left blank for the applicant to complete
+- **4 states supported** — CA, IL, NY, PA have official fillable forms; all others get worksheets
+- pypdf is an optional dependency — core system remains zero-dep
 
 ## Key Talking Points
 
@@ -89,7 +90,8 @@ Paste each prompt after the previous response completes.
 - **Live data, not hallucination** — Healthcare.gov Marketplace API returns real plans, real premiums
 - **Adversarial verification** — a dedicated agent fact-checks the other agents' work
 - **5 specialized Gemini agents** orchestrated in parallel by Kealu Vector
-- **Zero dependencies** — MCP server is stdlib-only Python, no pip packages needed
-- **Takes action** — generates a pre-filled PDF application draft the user can review and submit
-- **71 BDD tests** — full coverage of intake flow, MCP protocol, tool routing, workflow output, marketplace API, progress streaming, and PDF generation
+- **Zero core dependencies** — MCP server is stdlib-only Python; pypdf is optional for official form filling
+- **Takes action** — fills actual government application forms (CA, IL, NY, PA) or generates preparation worksheets
+- **Smart fallback** — official fillable form → worksheet, based on state availability
+- **4 state forms** — California SAWS-1, Illinois IL444-2378B, New York LDSS-4826-DD, Pennsylvania PA-600
 - **7 ADRs** — architecture decisions documented in [ARCHITECTURE.md](ARCHITECTURE.md)

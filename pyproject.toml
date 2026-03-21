@@ -6,7 +6,11 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
+forms = [
+    "pypdf>=4.0",
+]
 dev = [
+    "pypdf>=4.0",
     "pytest>=8.0",
     "pytest-bdd>=7.0",
 ]

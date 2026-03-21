@@ -216,11 +216,10 @@ _TOOLS = [
     {
         "name": "generate_application_draft",
         "description": (
-            "Generate a pre-filled PDF application draft for benefit programs the "
-            "user is eligible for. Call this AFTER navigate_benefits has returned "
-            "results. The PDF is a DRAFT for the user to review — it pre-fills "
-            "known fields (income, household size, location, eligible programs, "
-            "required documents) and leaves sensitive fields blank (SSN, DOB). "
+            "Generate a pre-filled PDF application for benefit programs. "
+            "For states with official fillable forms (e.g. California SAWS-1), "
+            "fills the actual government form. For other states, generates an "
+            "Application Preparation Worksheet. Call AFTER navigate_benefits. "
             "Returns the file path to the generated PDF."
         ),
         "inputSchema": {
@@ -232,11 +231,15 @@ _TOOLS = [
                 },
                 "state": {
                     "type": "string",
-                    "description": "US state",
+                    "description": "US state (e.g. 'California', 'TX')",
                 },
                 "zip_code": {
                     "type": "string",
                     "description": "5-digit ZIP code",
+                },
+                "county": {
+                    "type": "string",
+                    "description": "County name (e.g. 'Los Angeles County')",
                 },
                 "income_type": {
                     "type": "string",
@@ -1000,9 +1003,9 @@ def _parse_income(args: dict[str, Any]) -> int:
 
 
 def _run_generate_application_draft(args: dict[str, Any]) -> str:
-    """Generate a pre-filled PDF application draft from workflow output."""
+    """Generate a pre-filled PDF application from workflow output."""
     try:
-        from benefit_navigator.pdf_generator import generate_application_pdf
+        from benefit_navigator.form_filler import generate_application
 
         workflow_output = args.get("workflow_output", "")
         if not workflow_output:
@@ -1011,21 +1014,76 @@ def _run_generate_application_draft(args: dict[str, Any]) -> str:
                 "its full output as the workflow_output parameter."
             )
 
-        path = generate_application_pdf(args, workflow_output)
+        # Normalize state to 2-letter code for form registry lookup
+        _normalize_state(args)
+
+        path, form_type = generate_application(args, workflow_output)
+
+        if form_type == "official":
+            return (
+                f"Official state application form filled successfully.\n\n"
+                f"**Form:** Pre-filled government application\n"
+                f"**File:** `{path}`\n\n"
+                f"**What was pre-filled:**\n"
+                f"- State, ZIP code, county, and date\n"
+                f"- Eligible program checkboxes\n"
+                f"- Language preferences\n\n"
+                f"**Next steps for the applicant:**\n"
+                f"1. Open the PDF and review all pre-filled fields\n"
+                f"2. Fill in personal details (name, DOB, SSN, address)\n"
+                f"3. Complete remaining sections\n"
+                f"4. Sign, date, and submit to your local county office\n\n"
+                f"*This is a pre-filled DRAFT — review all fields before submitting.*"
+            )
+
         return (
-            f"Application draft PDF generated successfully.\n\n"
+            f"Application Preparation Worksheet generated.\n\n"
             f"**File:** `{path}`\n\n"
+            f"No official fillable form is available for this state, so an "
+            f"Application Preparation Worksheet was generated instead. "
+            f"Use it as a reference when filling out the official application.\n\n"
             f"**Next steps for the applicant:**\n"
             f"1. Open the PDF and review all pre-filled information\n"
-            f"2. Fill in blank fields (name, date of birth, SSN, signature)\n"
-            f"3. Gather the documents listed in the checklist\n"
-            f"4. Submit applications through the program-specific portals listed "
-            f"in the Application Directory section of your benefits analysis\n\n"
+            f"2. Visit the program-specific portals to access official forms\n"
+            f"3. Use the worksheet to fill in the official application\n"
+            f"4. Gather the documents listed in the checklist\n\n"
             f"*This is a DRAFT — verify all information before submitting.*"
         )
     except Exception as e:
         logger.exception("PDF generation failed")
         return f"Error generating application draft: {e}"
+
+
+# State name → 2-letter code mapping for form registry lookup
+_STATE_CODES: dict[str, str] = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
+    "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN",
+    "mississippi": "MS", "missouri": "MO", "montana": "MT", "nebraska": "NE",
+    "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ",
+    "new mexico": "NM", "new york": "NY", "north carolina": "NC",
+    "north dakota": "ND", "ohio": "OH", "oklahoma": "OK", "oregon": "OR",
+    "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+    "vermont": "VT", "virginia": "VA", "washington": "WA",
+    "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
+}
+
+
+def _normalize_state(args: dict[str, Any]) -> None:
+    """Normalize state field to 2-letter code in-place."""
+    state = (args.get("state") or "").strip()
+    if not state:
+        return
+    if len(state) == 2:
+        args["state"] = state.upper()
+        return
+    code = _STATE_CODES.get(state.lower())
+    if code:
+        args["state"] = code
 
 
 def _collect_output(result: dict) -> str:

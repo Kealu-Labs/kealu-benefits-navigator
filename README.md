@@ -84,10 +84,16 @@ In a production deployment, Vector's enterprise features add further controls: d
 
 ```
 kealu-benefit-navigator/
-├── src/benefit_navigator/     # MCP server (stdlib-only, zero dependencies)
+├── src/benefit_navigator/     # MCP server (stdlib-only core, pypdf optional)
 │   ├── mcp_server.py          # MCP JSON-RPC 2.0 over stdio + tool dispatch
 │   ├── marketplace_api.py     # Healthcare.gov Marketplace API client (live plan data)
-│   ├── pdf_generator.py       # Zero-dependency PDF application draft generator
+│   ├── form_filler.py         # Official form filling (pypdf) with worksheet fallback
+│   ├── pdf_generator.py       # Zero-dependency PDF worksheet generator
+│   ├── forms/                 # Official fillable form templates (4 states)
+│   │   ├── CA-SAWS-1.pdf      # California SAWS-1 (CalFresh/Medi-Cal/CalWORKs)
+│   │   ├── IL-444-2378B.pdf   # Illinois IL444-2378B (Cash/Medical/SNAP combined)
+│   │   ├── NY-LDSS-4826-DD.pdf # New York LDSS-4826-DD (SNAP)
+│   │   └── PA-600.pdf         # Pennsylvania PA-600 (Cash/Healthcare/SNAP)
 │   ├── __main__.py            # python -m benefit_navigator
 │   └── __init__.py
 ├── workflows/                 # Kealu Vector workflow definitions
@@ -167,11 +173,19 @@ kvr run benefit-navigator \
 | `navigate_benefits` | Vector 5-phase workflow | Full analysis with guided intake flow |
 | `check_eligibility` | CMS API + Vector | Single-program eligibility check, enriched with live APTC/FPL/Medicaid data |
 | `compare_insurance_plans` | CMS Marketplace API | Real plan names, premiums, deductibles, and subsidy calculations from Healthcare.gov |
-| `generate_application_draft` | Local PDF generation | Pre-filled application draft PDF with eligible programs, household data, and document checklist |
+| `generate_application_draft` | Official forms + local PDF | Fills real government forms (CA SAWS-1) or generates preparation worksheets |
 
 When `CMS_API_KEY` is configured, `compare_insurance_plans` returns real marketplace plans with APTC-adjusted premiums and `check_eligibility` includes live CMS data (FPL percentage, APTC amount, state Medicaid thresholds). Without the key, both fall back gracefully to Vector's AI-powered analysis.
 
-After analysis, `generate_application_draft` produces a pre-filled PDF application draft — the system doesn't just advise, it takes action. The PDF pre-fills known fields (income, household, eligible programs, required documents) and leaves sensitive fields (SSN, DOB) blank for manual completion. Generated using raw PDF 1.4 spec with zero dependencies.
+After analysis, `generate_application_draft` produces a pre-filled application PDF. For states with official fillable forms (CA, IL, NY, PA), it fills the actual government form — checking program eligibility boxes, pre-filling location and date fields. For other states, it generates an Application Preparation Worksheet. The system doesn't just advise — it takes action.
+
+**Supported official forms:**
+| State | Form | Programs |
+|-------|------|----------|
+| California | SAWS-1 | CalFresh, Medi-Cal, CalWORKs |
+| Illinois | IL444-2378B | SNAP, Medicaid, Cash Assistance |
+| New York | LDSS-4826-DD | SNAP |
+| Pennsylvania | PA-600 | SNAP, Medicaid, Cash Assistance |
 
 ### Healthcare.gov Marketplace API
 
