@@ -107,6 +107,13 @@ _TOOLS = [
                     "type": "string",
                     "description": "ZIP code for insurance marketplace lookup",
                 },
+                "annual_income": {
+                    "type": "string",
+                    "description": (
+                        "Annual household income before taxes "
+                        "(e.g. '$42,000', '42000', '$42k')"
+                    ),
+                },
                 "income_type": {
                     "type": "string",
                     "description": "W-2 employee | self-employed | gig/1099 | mixed | unemployed",
@@ -431,7 +438,7 @@ def _check_intake_completeness(args: dict[str, Any]) -> str | None:
         )
 
     # Check income — explicit field or mentioned in profile
-    has_income = any(
+    has_income = bool(args.get("annual_income")) or any(
         marker in profile_lower
         for marker in [
             "$",
@@ -583,6 +590,7 @@ def _summarize_provided(args: dict[str, Any], profile: str) -> str:
     if profile:
         parts.append(f"Profile: {profile}")
     for key in [
+        "annual_income",
         "state",
         "county",
         "zip_code",
@@ -1132,20 +1140,34 @@ def _parse_income(args: dict[str, Any]) -> int:
     Logs a warning when using the default since it may produce incorrect
     CMS API results near ACA subsidy cutoffs.
     """
-    profile = args.get("household_profile", "")
-
-    for pattern in _INCOME_PATTERNS:
-        match = pattern.search(profile)
-        if match:
-            raw = match.group(1).replace(",", "")
+    # Check explicit annual_income field first — bare numbers are valid here
+    explicit = args.get("annual_income", "")
+    if explicit:
+        raw = re.sub(r"[^\d]", "", explicit)
+        if raw:
             try:
                 income = int(raw)
             except ValueError:
-                continue
-            # If it looks like shorthand (42 = $42k), multiply
-            if income < 1000:
-                income *= 1000
-            return income
+                pass
+            else:
+                if income < 1000:
+                    income *= 1000
+                return income
+
+    # Fall back to pattern matching in household_profile text
+    profile = args.get("household_profile", "")
+    if profile:
+        for pattern in _INCOME_PATTERNS:
+            match = pattern.search(profile)
+            if match:
+                raw = match.group(1).replace(",", "")
+                try:
+                    income = int(raw)
+                except ValueError:
+                    continue
+                if income < 1000:
+                    income *= 1000
+                return income
 
     logger.warning("No income found in profile, using default %d — results may be inaccurate", DEFAULT_INCOME)
     return DEFAULT_INCOME
