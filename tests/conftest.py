@@ -197,11 +197,18 @@ def mock_kvr(tmp_path, monkeypatch):
                 if arg == "--run-id" and i + 1 < len(cmd):
                     run_id = cmd[i + 1]
 
-            # Write phase output files (matches kvr run output format)
-            run_dir = tmp_path / ".workforce" / run_id
-            run_dir.mkdir(parents=True, exist_ok=True)
+            # Write phase output .md files and decision.jsonl (matching real kvr format)
+            log_dir = tmp_path / ".workforce" / run_id
+            log_dir.mkdir(parents=True, exist_ok=True)
+            decision_lines = []
             for phase_name, output in self.phase_outputs.items():
-                (run_dir / f"{phase_name}.md").write_text(output)
+                md_path = log_dir / f"{phase_name}.md"
+                md_path.write_text(output)
+                decision_lines.append(json.dumps({
+                    "decision_type": "phase_complete",
+                    "phase": phase_name,
+                }))
+            (log_dir / "decision.jsonl").write_text("\n".join(decision_lines) + "\n")
 
             result = MagicMock()
             result.returncode = 0

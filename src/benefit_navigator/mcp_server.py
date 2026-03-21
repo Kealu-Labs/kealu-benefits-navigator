@@ -9,7 +9,7 @@ Example ``mcp_config.json`` entry::
       "mcpServers": {
         "benefit-navigator": {
           "command": "/bin/zsh",
-          "args": ["-c", "set -a && source ~/.env && set +a && exec /path/to/.venv/bin/python -m benefit_navigator"],
+          "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f .env ] && source .env && set +a && exec .venv/bin/python -m benefit_navigator"],
           "cwd": "/path/to/kealu-benefit-navigator"
         }
       }
@@ -703,41 +703,57 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             if var_file and os.path.exists(var_file.name):
                 os.unlink(var_file.name)
 
-        run_dir = Path.cwd() / ".workforce" / run_id
+        log_dir = Path.cwd() / ".workforce" / run_id
 
-        if not run_dir.exists():
-            return f"Workflow failed to produce output directory. Exit code {returncode}."
+        if not log_dir.exists():
+            return (
+                f"Workflow failed to produce output directory (exit code {returncode}). "
+                f"Check that kvr is installed (>= 0.114.13) and the "
+                f"benefit-navigator workflow exists."
+            )
 
-        # Phase outputs are stored as {phase-name}.md files in the run directory
-        phase_outputs = {}
-        phase_names = [
-            "benefits-research",
-            "insurance-research",
-            "evidence-verification",
-            "eligibility-validation",
-            "action-plan",
-        ]
-        for phase_name in phase_names:
-            phase_file = run_dir / f"{phase_name}.md"
-            if phase_file.exists():
-                phase_outputs[phase_name] = phase_file.read_text()
+        phase_outputs: dict[str, str] = {}
 
-        if not phase_outputs:
-            # Fallback: check phases subdirectory
-            phases_dir = run_dir / "phases"
-            if phases_dir.exists():
-                for phase_dir in sorted(phases_dir.iterdir()):
-                    output_file = phase_dir / "output.md"
-                    if output_file.exists():
-                        # Extract phase name from dir name like "01-benefits-research"
-                        name = "-".join(phase_dir.name.split("-")[1:])
-                        phase_outputs[name] = output_file.read_text()
+        # Determine phase ordering from decision.jsonl phase_complete events
+        phase_order: list[str] = []
+        log_path = log_dir / "decision.jsonl"
+        if log_path.exists():
+            with open(log_path) as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    data = json.loads(line)
+                    if data.get("decision_type") == "phase_complete" and data.get("phase"):
+                        phase_order.append(data["phase"])
+                    # Legacy format fallback
+                    elif data.get("type") == "PHASE_RESULT" and data.get("phase_name"):
+                        phase_outputs[data["phase_name"]] = data.get("metadata", {}).get("output", "")
+
+        # Primary: read {phase-name}.md files written by kvr
+        md_outputs: dict[str, str] = {}
+        for md_file in log_dir.glob("*.md"):
+            phase_name = md_file.stem  # e.g. "benefits-research"
+            if phase_name == "summary":
+                continue  # skip kvr's own summary file
+            content = md_file.read_text(encoding="utf-8").strip()
+            if content:
+                md_outputs[phase_name] = content
+
+        if md_outputs:
+            # Use phase_order from decision.jsonl if available, otherwise alphabetical
+            if phase_order:
+                for name in phase_order:
+                    if name in md_outputs:
+                        phase_outputs[name] = md_outputs.pop(name)
+            # Append any remaining .md files not in the decision log
+            for name, content in md_outputs.items():
+                phase_outputs[name] = content
 
         # Clean up run directory to avoid PII accumulation
         try:
-            shutil.rmtree(run_dir)
+            shutil.rmtree(log_dir)
         except OSError:
-            logger.debug("Could not clean up run directory at %s", run_dir)
+            logger.debug("Could not clean up run directory at %s", log_dir)
 
         return _collect_output({"phase_outputs": phase_outputs})
     except Exception as e:
@@ -900,15 +916,23 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             logger.debug("CMS enrichment failed for eligibility check", exc_info=True)
 
     # Always run kvr assist for the detailed analysis
+    task_file = None
     try:
         kvr = _resolve_kvr()
+        program = args.get("program", "unknown program")
+        # Write task details to temp file to avoid PII in OS process table
         task = (
-            f"Check eligibility for {args.get('program', 'unknown program')} "
+            f"Check eligibility for {program} "
             f"for this household: {args.get('household_profile', '')}. "
             f"Use the benefit-navigator context for FPL tables and program reference."
         )
+        task_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
+        )
+        task_file.write(task)
+        task_file.close()
         result = subprocess.run(
-            [kvr, "assist", "--spawn", task],
+            [kvr, "assist", "--spawn", f"Execute the task in {task_file.name}"],
             capture_output=True,
             text=True,
             timeout=KVR_TIMEOUT,
@@ -918,6 +942,9 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
     except Exception as e:
         logger.exception("eligibility check failed")
         return enrichment + f"Error checking eligibility: {e}"
+    finally:
+        if task_file and os.path.exists(task_file.name):
+            os.unlink(task_file.name)
 
 
 def _run_insurance_comparison(args: dict[str, Any]) -> str:
@@ -983,17 +1010,25 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
 
 def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
     """Fallback: run insurance comparison via kvr assist."""
+    task_file = None
     try:
         kvr = _resolve_kvr()
+        zip_code = args.get("zip_code", "unknown")
+        # Write task details to temp file to avoid PII in OS process table
         task = (
             f"Compare all insurance options (ACA marketplace, off-marketplace, "
             f"short-term, health sharing, ICHRA/QSEHRA) for zip code "
-            f"{args.get('zip_code', 'unknown')}. "
+            f"{zip_code}. "
             f"Household: {args.get('household_profile', '')}. "
             f"Use the benefit-navigator context for insurance channel reference."
         )
+        task_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
+        )
+        task_file.write(task)
+        task_file.close()
         result = subprocess.run(
-            [kvr, "assist", "--spawn", task],
+            [kvr, "assist", "--spawn", f"Execute the task in {task_file.name}"],
             capture_output=True,
             text=True,
             timeout=KVR_TIMEOUT,
@@ -1002,6 +1037,9 @@ def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
     except Exception as e:
         logger.exception("insurance comparison fallback failed")
         return f"Error comparing insurance plans: {e}"
+    finally:
+        if task_file and os.path.exists(task_file.name):
+            os.unlink(task_file.name)
 
 
 def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
