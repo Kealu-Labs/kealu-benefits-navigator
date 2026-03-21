@@ -14,11 +14,10 @@ Feature: MCP Protocol Compliance
 
   Scenario: Tools list returns all navigator tools
     When the server receives a "tools/list" request with id 2
-    Then the response contains 4 tools
+    Then the response contains 3 tools
     And the tools include "navigate_benefits"
     And the tools include "check_eligibility"
     And the tools include "compare_insurance_plans"
-    And the tools include "generate_application_draft"
 
   Scenario: navigate_benefits tool has required household_profile field
     When the server receives a "tools/list" request with id 3

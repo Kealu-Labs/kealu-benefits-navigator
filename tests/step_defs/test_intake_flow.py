@@ -138,10 +138,8 @@ def check_asks_for(ctx, field):
 
 @then(parsers.parse('the response does not ask for "{field}"'))
 def check_does_not_ask(ctx, field):
-    if ctx.result is None:
-        return  # None means ready — no questions asked at all
-    # Check that the field doesn't appear as a bolded question label
-    assert f"**{field}" not in ctx.result, (
+    # None means intake is complete (ready) — the field is not being asked for, which is correct
+    assert ctx.result is None or f"**{field}" not in ctx.result, (
         f"Response should NOT ask for '{field}' but does:\n{ctx.result}"
     )
 

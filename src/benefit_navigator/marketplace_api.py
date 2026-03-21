@@ -8,9 +8,12 @@ API docs: https://developer.cms.gov/marketplace-api/
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
+import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,7 +22,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://marketplace.api.healthcare.gov/api/v1"
-_TIMEOUT = 15  # seconds
+_TIMEOUT = int(os.environ.get("CMS_API_TIMEOUT", "15"))
+_MAX_RETRIES = 3
+_RETRY_BACKOFF = (1, 2, 4)  # seconds
+
+# Module-level opener for HTTP keep-alive connection reuse
+_opener = urllib.request.build_opener()
 
 
 class MissingAPIKeyError(Exception):
@@ -31,10 +39,35 @@ def _api_key() -> str:
     if not key:
         raise MissingAPIKeyError(
             "CMS_API_KEY environment variable is not set.\n"
-            "Request a free key at: https://developer.cms.gov/marketplace-api/key-request.html\n"
-            "Or use the CMS test key: d687412e7b53146b2631dc01974ad0a4"
+            "Request a free key at: https://developer.cms.gov/marketplace-api/key-request.html"
         )
     return key
+
+
+def _request_with_retry(req: urllib.request.Request) -> Any:
+    """Execute an HTTP request with retry and exponential backoff for transient errors."""
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            with _opener.open(req, timeout=_TIMEOUT) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            if 400 <= exc.code < 500:
+                raise
+            last_exc = exc
+        except (urllib.error.URLError, OSError) as exc:
+            last_exc = exc
+        if attempt < _MAX_RETRIES - 1:
+            delay = _RETRY_BACKOFF[attempt]
+            logger.warning(
+                "API request failed (attempt %d/%d), retrying in %ds: %s",
+                attempt + 1,
+                _MAX_RETRIES,
+                delay,
+                last_exc,
+            )
+            time.sleep(delay)
+    raise last_exc  # type: ignore[misc]
 
 
 def _get(path: str, params: dict[str, str] | None = None) -> Any:
@@ -45,8 +78,7 @@ def _get(path: str, params: dict[str, str] | None = None) -> Any:
     url = f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}"
     logger.info("GET %s", url.replace(_api_key(), "***"))
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-        return json.loads(resp.read().decode())
+    return _request_with_retry(req)
 
 
 def _post(path: str, body: dict[str, Any], params: dict[str, str] | None = None) -> Any:
@@ -63,8 +95,7 @@ def _post(path: str, body: dict[str, Any], params: dict[str, str] | None = None)
         headers={"Content-Type": "application/json", "Accept": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-        return json.loads(resp.read().decode())
+    return _request_with_retry(req)
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +107,16 @@ def resolve_county(zip_code: str) -> dict[str, Any]:
     """Resolve a ZIP code to county FIPS code(s).
 
     Returns: {"counties": [{"fips": "...", "name": "...", "state": "...", ...}]}
+    Raises ValueError if zip_code is not a valid 5-digit US ZIP.
     """
+    if not re.fullmatch(r"\d{5}", zip_code):
+        raise ValueError(f"Invalid ZIP code format: {zip_code!r} (expected 5 digits)")
+    return _resolve_county_cached(zip_code)
+
+
+@functools.lru_cache(maxsize=256)
+def _resolve_county_cached(zip_code: str) -> dict[str, Any]:
+    """Cached ZIP-to-county lookup (static geographic data)."""
     return _get(f"/counties/by/zip/{zip_code}")
 
 
@@ -89,7 +129,7 @@ def estimate_eligibility(
 ) -> dict[str, Any]:
     """Estimate APTC, CSR, and Medicaid/CHIP eligibility.
 
-    Each person dict should have: age, is_pregnant (bool), uses_tobacco (bool).
+    Each person dict should have: age, gender, is_pregnant (bool), uses_tobacco (bool).
     Returns eligibility estimates including APTC amount and CSR level.
     """
     household = {
@@ -174,7 +214,13 @@ def check_provider_coverage(plan_ids: list[str], npi: str) -> dict[str, Any]:
 
 
 def get_state_medicaid(state_abbrev: str) -> dict[str, Any]:
-    """Get Medicaid poverty level thresholds for a state."""
+    """Get Medicaid poverty level thresholds for a state (cached)."""
+    return _get_state_medicaid_cached(state_abbrev)
+
+
+@functools.lru_cache(maxsize=64)
+def _get_state_medicaid_cached(state_abbrev: str) -> dict[str, Any]:
+    """Cached state Medicaid threshold lookup."""
     return _get(f"/states/{state_abbrev}/medicaid")
 
 

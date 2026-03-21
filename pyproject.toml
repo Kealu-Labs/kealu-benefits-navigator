@@ -19,7 +19,7 @@ dev = [
 benefit-navigator = "benefit_navigator.mcp_server:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=78.1.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
