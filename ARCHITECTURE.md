@@ -70,7 +70,7 @@
 ## Directory Structure Rationale
 
 ```
-kealu-benefit-navigator/          # Domain project — owns all healthcare logic
+kealu-benefits-navigator/          # Domain project — owns all healthcare logic
 ├── src/benefit_navigator/        # Runtime code (MCP server + API client)
 ├── workflows/                    # Vector workflow YAML (declarative)
 ├── personas/community/           # Agent behavior definitions (markdown)
@@ -113,13 +113,13 @@ kealu-agents-workforce/           # Vector monorepo — generic orchestrator
 - API key stored in `.env` (gitignored), loaded via environment variable
 - Rate-limited test key available for demos without approval wait
 
-## ADR-003: Domain isolation — benefit-navigator owns all healthcare logic
+## ADR-003: Domain isolation — benefits-navigator owns all healthcare logic
 
 **Status:** Accepted
 
 **Context:** Vector is a generic orchestrator used across industries. Healthcare-specific logic (FPL calculations, program eligibility rules, CMS API integration) should not leak into the Vector codebase.
 
-**Decision:** All domain knowledge lives in `kealu-benefit-navigator`. Vector is consumed as a binary (`kvr`), not a library. The MCP server decides what to delegate to Vector (multi-agent workflow) vs. handle directly (API calls, intake logic).
+**Decision:** All domain knowledge lives in `kealu-benefits-navigator`. Vector is consumed as a binary (`kvr`), not a library. The MCP server decides what to delegate to Vector (multi-agent workflow) vs. handle directly (API calls, intake logic).
 
 **Consequences:**
 - Vector remains reusable for any domain — no healthcare coupling

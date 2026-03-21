@@ -135,12 +135,12 @@ pytest==9.0.2 \
     --hash=sha256:711ffd45bf766d5264d487b917733b453d917afd2b0ad65223959f59089f875b \
     --hash=sha256:75186651a92bd89611d1d9fc20f0b4345fd827c41ccd5c299a868a05d70edf11
     # via
-    #   kealu-benefit-navigator (pyproject.toml)
+    #   kealu-benefits-navigator (pyproject.toml)
     #   pytest-bdd
 pytest-bdd==8.1.0 \
     --hash=sha256:2124051e71a05ad7db15296e39013593f72ebf96796e1b023a40e5453c47e5fb \
     --hash=sha256:ef0896c5cd58816dc49810e8ff1d632f4a12019fb3e49959b2d349ffc1c9bfb5
-    # via kealu-benefit-navigator (pyproject.toml)
+    # via kealu-benefits-navigator (pyproject.toml)
 six==1.17.0 \
     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 \
     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81

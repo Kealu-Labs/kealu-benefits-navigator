@@ -5,7 +5,7 @@ Feature: MCP Protocol Compliance
   Scenario: Initialize handshake returns server capabilities
     When the server receives an "initialize" request with id 1
     Then the response includes protocolVersion "2024-11-05"
-    And the response includes serverInfo name "benefit-navigator"
+    And the response includes serverInfo name "benefits-navigator"
     And the capabilities include "tools"
 
   Scenario: Initialized notification returns no response

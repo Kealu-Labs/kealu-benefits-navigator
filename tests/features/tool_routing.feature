@@ -2,10 +2,10 @@ Feature: Tool Execution and Routing
   Each MCP tool routes to the correct Vector workflow or kvr assist
   command, passing through all user-provided variables.
 
-  Scenario: navigate_benefits invokes benefit-navigator workflow
+  Scenario: navigate_benefits invokes benefits-navigator workflow
     Given a complete demo profile with skip_intake
     When navigate_benefits is executed with mocked kvr
-    Then kvr was invoked with workflow "benefit-navigator"
+    Then kvr was invoked with workflow "benefits-navigator"
     And kvr was invoked with "--mode" "automated"
 
   Scenario: Workflow variables are passed through to kvr

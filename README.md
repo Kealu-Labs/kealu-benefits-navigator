@@ -83,7 +83,7 @@ In a production deployment, Vector's enterprise features add further controls: d
 ## Architecture
 
 ```
-kealu-benefit-navigator/
+kealu-benefits-navigator/
 ├── src/benefit_navigator/     # MCP server (stdlib-only core, pypdf optional)
 │   ├── mcp_server.py          # MCP JSON-RPC 2.0 over stdio + tool dispatch
 │   ├── marketplace_api.py     # Healthcare.gov Marketplace API client (live plan data)
@@ -97,7 +97,7 @@ kealu-benefit-navigator/
 │   ├── __main__.py            # python -m benefit_navigator
 │   └── __init__.py
 ├── workflows/                 # Kealu Vector workflow definitions
-│   └── benefit-navigator.yaml # 5-phase parallel workflow with quality gates
+│   └── benefits-navigator.yaml # 5-phase parallel workflow with quality gates
 ├── personas/community/        # Agent persona definitions
 │   ├── benefits-researcher.md
 │   ├── insurance-analyst.md
@@ -105,7 +105,7 @@ kealu-benefit-navigator/
 │   ├── eligibility-analyst.md
 │   └── action-planner.md
 ├── contexts/community/        # Domain knowledge contexts
-│   └── benefit-navigator.md   # FPL tables, program reference, quality standards
+│   └── benefits-navigator.md   # FPL tables, program reference, quality standards
 ├── tests/                     # 78 BDD tests (pytest-bdd) + 3 integration tests
 │   ├── features/              # Gherkin scenarios
 │   └── step_defs/             # Step implementations
@@ -143,10 +143,10 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 ```json
 {
   "mcpServers": {
-    "benefit-navigator": {
+    "benefits-navigator": {
       "command": "/bin/zsh",
-      "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f /path/to/kealu-benefit-navigator/.env ] && source /path/to/kealu-benefit-navigator/.env && set +a && exec /path/to/kealu-benefit-navigator/.venv/bin/python -m benefit_navigator"],
-      "cwd": "/path/to/kealu-benefit-navigator"
+      "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f /path/to/kealu-benefits-navigator/.env ] && source /path/to/kealu-benefits-navigator/.env && set +a && exec /path/to/kealu-benefits-navigator/.venv/bin/python -m benefit_navigator"],
+      "cwd": "/path/to/kealu-benefits-navigator"
     }
   }
 }
@@ -159,7 +159,7 @@ The MCP server guides the conversation through a tiered intake flow — collecti
 ### With Kealu Vector CLI
 
 ```bash
-kvr run benefit-navigator \
+kvr run benefits-navigator \
   --var "household_profile=Single parent, 2 kids ages 4 and 9, $42k income" \
   --var "zip_code=77001" \
   --var "state=Texas" \

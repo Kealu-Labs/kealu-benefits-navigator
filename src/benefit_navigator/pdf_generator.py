@@ -450,7 +450,7 @@ def generate_application_pdf(
     args:
         The original tool arguments (household_profile, state, zip_code, etc.)
     workflow_output:
-        The text output from the benefit-navigator workflow.
+        The text output from the benefits-navigator workflow.
     output_dir:
         Directory to write the PDF to. Defaults to a temp-like location.
 

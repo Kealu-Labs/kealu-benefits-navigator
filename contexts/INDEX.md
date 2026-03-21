@@ -11,5 +11,5 @@ Available contexts for the Benefit & Insurance Navigator.
 ## For AI Agents
 
 ```
-For benefit navigation: benefit-navigator
+For benefit navigation: benefits-navigator
 ```

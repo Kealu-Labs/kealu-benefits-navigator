@@ -142,7 +142,7 @@ def build_command(ctx):
     kvr = shutil.which("kvr")
     if not kvr:
         pytest.skip("kvr not found on PATH")
-    cmd = [kvr, "run", "benefit-navigator", "--mode", "automated", "--no-progress", "--run-id", "test"]
+    cmd = [kvr, "run", "benefits-navigator", "--mode", "automated", "--no-progress", "--run-id", "test"]
     if ctx.progress_token:
         cmd.extend(["--phase-stream", "stdout"])
     ctx.cmd = cmd

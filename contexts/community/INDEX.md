@@ -6,4 +6,4 @@ Contexts for public benefits navigation, insurance comparison, and eligibility v
 
 | Context | Purpose |
 |---------|---------|
-| `benefit-navigator` | FPL reference tables, program quick reference, insurance channel comparison, quality standards for source verification, income cliff protocol, and coverage gap protocol |
+| `benefits-navigator` | FPL reference tables, program quick reference, insurance channel comparison, quality standards for source verification, income cliff protocol, and coverage gap protocol |

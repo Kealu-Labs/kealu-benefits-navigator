@@ -1,5 +1,5 @@
 
-name: benefit-navigator
+name: benefits-navigator
 description: "Discover government benefits and insurance options, validate eligibility, and produce a prioritized enrollment action plan"
 
 variables:
@@ -48,7 +48,7 @@ phases:
     complexity: complex
 
     context:
-      - community/benefit-navigator
+      - community/benefits-navigator
     template: |
       ## STATUS: COMPLETE
       ## SUMMARY: <!-- FILL: e.g., "14 programs identified across 5 categories" -->
@@ -180,7 +180,7 @@ phases:
     complexity: complex
 
     context:
-      - community/benefit-navigator
+      - community/benefits-navigator
     template: |
       ## STATUS: COMPLETE
       ## SUMMARY: <!-- FILL: e.g., "12 plans compared across 4 channels" -->
@@ -230,7 +230,7 @@ phases:
       Keep all section headers exactly as they are. Only replace the placeholder comments.
 
       **Step 1:** Calculate subsidy eligibility:
-      - Calculate FPL percentage independently from household income, size, and the FPL tables in the benefit-navigator context (this phase runs in parallel with benefits research, so do NOT rely on their calculation)
+      - Calculate FPL percentage independently from household income, size, and the FPL tables in the benefits-navigator context (this phase runs in parallel with benefits research, so do NOT rely on their calculation)
       - Determine APTC (Advanced Premium Tax Credit) amount
       - Check CSR (Cost-Sharing Reduction) eligibility (100-250% FPL for Silver plans)
       - Check for Medicaid gap (below 100% FPL in non-expansion state)
@@ -332,7 +332,7 @@ phases:
     complexity: complex
 
     context:
-      - community/benefit-navigator
+      - community/benefits-navigator
     template: |
       ## STATUS: COMPLETE
       ## SUMMARY: <!-- FILL: e.g., "12 checks performed: 10 verified, 1 corrected, 1 critical error" -->
@@ -377,14 +377,14 @@ phases:
       data point, and claim from the Benefits Research and Insurance Research phases.
 
       **Step 1: FPL Verification**
-      - Using the FPL tables in the benefit-navigator context, calculate FPL percentage from scratch
+      - Using the FPL tables in the benefits-navigator context, calculate FPL percentage from scratch
       - Show every step: household size × per-person amount + base amount = 100% FPL threshold
       - Calculate: (household income ÷ 100% FPL threshold) × 100 = FPL percentage
       - Compare against what Benefits Research calculated and what Insurance Research calculated
       - If ANY discrepancy exists, flag it with the correct value
 
       **Step 2: Medicaid Expansion Status**
-      - Look up the state in the non-expansion state list in the benefit-navigator context
+      - Look up the state in the non-expansion state list in the benefits-navigator context
       - Check that both research phases used the correct expansion status
       - If wrong: this is a CRITICAL ERROR — it changes Medicaid eligibility for every adult
 
@@ -463,7 +463,7 @@ phases:
     complexity: complex
 
     context:
-      - community/benefit-navigator
+      - community/benefits-navigator
     template: |
       ## STATUS: COMPLETE
       ## SUMMARY: <!-- FILL: e.g., "9 eligible, 3 ineligible, 2 marginal, 1 coverage gap" -->
@@ -579,7 +579,7 @@ phases:
     complexity: complex
 
     context:
-      - community/benefit-navigator
+      - community/benefits-navigator
     template: |
       ## STATUS: COMPLETE
       ## SUMMARY: <!-- FILL: e.g., "5 enrollment actions, 2 deadlines within 30 days, total value $18,240/year" -->

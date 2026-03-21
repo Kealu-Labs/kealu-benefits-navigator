@@ -7,10 +7,10 @@ Example ``mcp_config.json`` entry::
 
     {
       "mcpServers": {
-        "benefit-navigator": {
+        "benefits-navigator": {
           "command": "/bin/zsh",
           "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f .env ] && source .env && set +a && exec .venv/bin/python -m benefit_navigator"],
-          "cwd": "/path/to/kealu-benefit-navigator"
+          "cwd": "/path/to/kealu-benefits-navigator"
         }
       }
     }
@@ -695,7 +695,7 @@ def _format_intake_response(
 
 
 def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None = None) -> str:
-    """Run the full benefit-navigator workflow with optional progress streaming."""
+    """Run the full benefits-navigator workflow with optional progress streaming."""
     try:
         kvr = _resolve_kvr()
         run_id = f"mcp-navigator-{uuid.uuid4().hex[:8]}"
@@ -703,7 +703,7 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
         cmd = [
             kvr,
             "run",
-            "benefit-navigator",
+            "benefits-navigator",
             "--mode",
             "automated",
             "--no-progress",
@@ -743,7 +743,7 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             if val:
                 cmd.extend(["--var", f"{key}={val}"])
 
-        logger.info("Running benefit-navigator run_id=%s", run_id)
+        logger.info("Running benefits-navigator run_id=%s", run_id)
 
         if progress_token:
             # Stream mode: read phase events in real time
@@ -764,7 +764,7 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             return (
                 f"Workflow failed to produce output directory (exit code {returncode}). "
                 f"Check that kvr is installed (>= 0.114.13) and the "
-                f"benefit-navigator workflow exists."
+                f"benefits-navigator workflow exists."
             )
 
         phase_outputs: dict[str, str] = {}
@@ -812,7 +812,7 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
 
         return _collect_output({"phase_outputs": phase_outputs})
     except Exception as e:
-        logger.exception("benefit-navigator workflow failed")
+        logger.exception("benefits-navigator workflow failed")
         return f"Error running benefit navigator: {e}"
 
 
@@ -979,7 +979,7 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
         task = (
             f"Check eligibility for {program} "
             f"for this household: {args.get('household_profile', '')}. "
-            f"Use the benefit-navigator context for FPL tables and program reference."
+            f"Use the benefits-navigator context for FPL tables and program reference."
         )
         task_file = tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
@@ -1075,7 +1075,7 @@ def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
             f"short-term, health sharing, ICHRA/QSEHRA) for zip code "
             f"{zip_code}. "
             f"Household: {args.get('household_profile', '')}. "
-            f"Use the benefit-navigator context for insurance channel reference."
+            f"Use the benefits-navigator context for insurance channel reference."
         )
         task_file = tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
@@ -1436,7 +1436,7 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
                 "serverInfo": {
-                    "name": "benefit-navigator",
+                    "name": "benefits-navigator",
                     "version": "1.0.0",
                 },
             },

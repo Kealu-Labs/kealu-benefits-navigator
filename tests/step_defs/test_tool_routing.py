@@ -17,7 +17,7 @@ from ..conftest import DEMO_PROFILE
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/tool_routing.feature", "navigate_benefits invokes benefit-navigator workflow")
+@scenario("../features/tool_routing.feature", "navigate_benefits invokes benefits-navigator workflow")
 def test_invokes_workflow():
     pass
 

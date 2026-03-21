@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-1. Antigravity running with benefit-navigator MCP server loaded
+1. Antigravity running with benefits-navigator MCP server loaded
 2. `CMS_API_KEY` configured (enables live Healthcare.gov data)
 
 ## MCP Config
@@ -10,19 +10,19 @@
 ```json
 {
   "mcpServers": {
-    "benefit-navigator": {
+    "benefits-navigator": {
       "command": "/bin/zsh",
       "args": [
         "-c",
-        "set -a && source ~/.env && source /path/to/kealu-benefit-navigator/.env && set +a && exec /path/to/kealu-benefit-navigator/.venv/bin/python -m benefit_navigator"
+        "set -a && source ~/.env && source /path/to/kealu-benefits-navigator/.env && set +a && exec /path/to/kealu-benefits-navigator/.venv/bin/python -m benefit_navigator"
       ],
-      "cwd": "/path/to/kealu-benefit-navigator"
+      "cwd": "/path/to/kealu-benefits-navigator"
     }
   }
 }
 ```
 
-> **Note:** Replace `/path/to/kealu-benefit-navigator` with your actual project path.
+> **Note:** Replace `/path/to/kealu-benefits-navigator` with your actual project path.
 
 ## Prompts
 

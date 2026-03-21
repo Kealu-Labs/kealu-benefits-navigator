@@ -1,4 +1,4 @@
-"""Shared fixtures for benefit-navigator BDD tests."""
+"""Shared fixtures for benefits-navigator BDD tests."""
 
 from __future__ import annotations
 
