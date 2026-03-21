@@ -662,9 +662,8 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
         if progress_token:
             cmd.extend(["--phase-stream", "stdout"])
 
-        # Write sensitive vars to a temp file instead of passing as CLI args
-        # to avoid PII exposure in OS process table (ps aux)
         var_keys = [
+            "annual_income",
             "household_profile",
             "state",
             "county",
@@ -682,34 +681,25 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             "assets",
             "expected_income_change",
         ]
-        var_file = None
-        try:
-            var_data = {key: args[key] for key in var_keys if args.get(key)}
-            if var_data:
-                var_file = tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".json", prefix="kvr-vars-", delete=False
-                )
-                json.dump(var_data, var_file)
-                var_file.close()
-                cmd.extend(["--var-file", var_file.name])
+        for key in var_keys:
+            val = args.get(key)
+            if val:
+                cmd.extend(["--var", f"{key}={val}"])
 
-            logger.info("Running benefit-navigator run_id=%s", run_id)
+        logger.info("Running benefit-navigator run_id=%s", run_id)
 
-            if progress_token:
-                # Stream mode: read phase events in real time
-                returncode = _run_with_progress(cmd, progress_token)
-            else:
-                # Simple mode: wait for completion
-                result = subprocess.run(
-                    cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                    text=True, timeout=KVR_TIMEOUT,
-                )
-                if result.returncode != 0:
-                    logger.warning("kvr exited with code %d: %s", result.returncode, result.stderr[:500])
-                returncode = result.returncode
-        finally:
-            if var_file and os.path.exists(var_file.name):
-                os.unlink(var_file.name)
+        if progress_token:
+            # Stream mode: read phase events in real time
+            returncode = _run_with_progress(cmd, progress_token)
+        else:
+            # Simple mode: wait for completion
+            result = subprocess.run(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                text=True, timeout=KVR_TIMEOUT,
+            )
+            if result.returncode != 0:
+                logger.warning("kvr exited with code %d: %s", result.returncode, result.stderr[:500])
+            returncode = result.returncode
 
         log_dir = Path.cwd() / ".workforce" / run_id
 
