@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from pytest_bdd import given, parsers, scenario, then, when
@@ -120,7 +121,15 @@ def execute_with_assist_mock(ctx, monkeypatch):
         # Extract task from command — it's the last positional arg after --spawn
         for i, arg in enumerate(cmd):
             if arg == "--spawn" and i + 1 < len(cmd):
-                captured.task = cmd[i + 1]
+                spawn_arg = cmd[i + 1]
+                captured.task = spawn_arg
+                # If the task references a file, read its contents
+                if spawn_arg.startswith("Execute the task in "):
+                    task_path = spawn_arg.removeprefix("Execute the task in ")
+                    try:
+                        captured.task_content = Path(task_path).read_text()
+                    except FileNotFoundError:
+                        pass
         result = MagicMock()
         result.stdout = "Mock kvr assist output"
         result.stderr = ""
@@ -132,7 +141,7 @@ def execute_with_assist_mock(ctx, monkeypatch):
     tool_name = "check_eligibility" if "program" in ctx.args else "compare_insurance_plans"
     ctx.result = _execute_tool(tool_name, ctx.args)
     ctx.kvr_cmd = getattr(captured, "cmd", [])
-    ctx.assist_task = getattr(captured, "task", "")
+    ctx.assist_task = getattr(captured, "task_content", getattr(captured, "task", ""))
 
 
 @when(parsers.parse('an unknown tool "{tool_name}" is executed'), target_fixture="ctx")

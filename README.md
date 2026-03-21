@@ -145,7 +145,7 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
   "mcpServers": {
     "benefit-navigator": {
       "command": "/bin/zsh",
-      "args": ["-c", "set -a && source ~/.env && set +a && exec /path/to/kealu-benefit-navigator/.venv/bin/python -m benefit_navigator"],
+      "args": ["-c", "set -a && [ -f ~/.env ] && source ~/.env; [ -f /path/to/kealu-benefit-navigator/.env ] && source /path/to/kealu-benefit-navigator/.env && set +a && exec /path/to/kealu-benefit-navigator/.venv/bin/python -m benefit_navigator"],
       "cwd": "/path/to/kealu-benefit-navigator"
     }
   }
