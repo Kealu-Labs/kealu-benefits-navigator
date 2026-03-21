@@ -16,18 +16,17 @@ Feature: Tool Execution and Routing
       | state        | Texas                |
       | county       | Harris County        |
     When navigate_benefits is executed with mocked kvr
-    Then the kvr command includes "--var-file"
-    And the var file contains key "household_profile" with value "Single parent, 2 kids ages 4 and 9, $42k income"
-    And the var file contains key "zip_code" with value "77001"
-    And the var file contains key "medications" with value "Metformin 500mg"
-    And the var file contains key "state" with value "Texas"
-    And the var file contains key "county" with value "Harris County"
+    Then the kvr command includes var "household_profile" with value "Single parent, 2 kids ages 4 and 9, $42k income"
+    And the kvr command includes var "zip_code" with value "77001"
+    And the kvr command includes var "medications" with value "Metformin 500mg"
+    And the kvr command includes var "state" with value "Texas"
+    And the kvr command includes var "county" with value "Harris County"
 
   Scenario: Empty optional fields are not passed to kvr
     Given a complete demo profile with skip_intake
     When navigate_benefits is executed with mocked kvr
-    Then the var file does not contain key "medications"
-    And the var file does not contain key "providers"
+    Then the kvr command does not include var "medications"
+    And the kvr command does not include var "providers"
 
   Scenario: check_eligibility invokes kvr assist with program name
     Given a check_eligibility call for program "SNAP"
