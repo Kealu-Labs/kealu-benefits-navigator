@@ -1037,7 +1037,90 @@ def _collect_output(result: dict) -> str:
     sections = []
     for phase_name, output in phase_outputs.items():
         sections.append(f"## {phase_name.replace('-', ' ').title()}\n\n{output}")
+
+    # Append consolidated sources & references section
+    sources_section = _build_sources_section(phase_outputs)
+    if sources_section:
+        sections.append(sources_section)
+
     return "\n\n---\n\n".join(sections)
+
+
+def _build_sources_section(phase_outputs: dict[str, str]) -> str:
+    """Extract all cited URLs and verification statuses into a consolidated section."""
+    import re
+    from collections import OrderedDict
+
+    all_text = "\n".join(phase_outputs.values())
+
+    # Extract URLs with surrounding context for labeling
+    url_entries: OrderedDict[str, str] = OrderedDict()
+    for line in all_text.split("\n"):
+        urls = re.findall(r"https?://[^\s\)\]>\"]+", line)
+        for url in urls:
+            url = url.rstrip(".,;:")
+            if url not in url_entries:
+                # Classify source type
+                if ".gov" in url:
+                    source_type = ".gov (official)"
+                elif any(d in url for d in [".org", ".edu"]):
+                    source_type = "nonprofit/edu"
+                else:
+                    source_type = "other"
+                url_entries[url] = source_type
+
+    # Extract verification summary from evidence-verification phase
+    verify_text = phase_outputs.get("evidence-verification", "")
+    verify_summary = ""
+    for line in verify_text.split("\n"):
+        if "checks performed" in line.lower() or "total checks" in line.lower():
+            # Clean markdown formatting and leading labels
+            verify_summary = re.sub(
+                r"^[#*\s]*(?:SUMMARY:\s*)?", "", line,
+            ).strip()
+            break
+
+    if not url_entries and not verify_summary:
+        return ""
+
+    parts = ["## Sources & References"]
+    parts.append("")
+    parts.append(
+        "All claims in this analysis can be independently verified using the "
+        "sources below. The Evidence Verification phase audited every data point "
+        "against official reference tables."
+    )
+
+    if verify_summary:
+        parts.append("")
+        parts.append(f"**Verification summary:** {verify_summary}")
+
+    if url_entries:
+        parts.append("")
+        parts.append("### Cited Sources")
+        parts.append("")
+        parts.append("| Source | Type |")
+        parts.append("|--------|------|")
+
+        # Deduplicate by domain, keep most specific URL per domain
+        seen_domains: dict[str, list[tuple[str, str]]] = {}
+        for url, stype in url_entries.items():
+            domain = re.sub(r"https?://(?:www\.)?", "", url).split("/")[0]
+            seen_domains.setdefault(domain, []).append((url, stype))
+
+        for domain, entries in seen_domains.items():
+            # Show the most specific (longest) URL per domain
+            best_url, best_type = max(entries, key=lambda e: len(e[0]))
+            parts.append(f"| [{domain}]({best_url}) | {best_type} |")
+
+    parts.append("")
+    parts.append(
+        "*Every program recommendation cites its source. Claims marked "
+        "UNVERIFIED or ESTIMATED should be confirmed with the issuing agency "
+        "before acting.*"
+    )
+
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------

@@ -16,10 +16,10 @@ Feature: Workflow Output Formatting
   # End-to-end: intake → kvr → output → MCP response
   # ---------------------------------------------------------------
 
-  Scenario: All five phase outputs are collected and formatted
+  Scenario: All five phase outputs plus sources section are collected and formatted
     Given the kvr workflow produces all 5 phases
     When navigate_benefits completes
-    Then the MCP response contains 5 sections separated by horizontal rules
+    Then the MCP response contains 6 sections separated by horizontal rules
     And each section has a markdown heading
 
   Scenario: Phase outputs appear in workflow order

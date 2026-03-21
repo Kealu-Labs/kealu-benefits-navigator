@@ -18,7 +18,7 @@ from ..conftest import MOCK_PHASE_OUTPUTS
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/workflow_output.feature", "All five phase outputs are collected and formatted")
+@scenario("../features/workflow_output.feature", "All five phase outputs plus sources section are collected and formatted")
 def test_five_phases():
     pass
 
