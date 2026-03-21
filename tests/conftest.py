@@ -206,13 +206,13 @@ def mock_kvr(tmp_path, monkeypatch):
 
     original_run = mcp_mod._run_benefit_navigator
 
-    def patched_run_benefit_navigator(args):
+    def patched_run_benefit_navigator(args, *, progress_token=None):
         import subprocess as sp
 
         monkeypatch.setattr(sp, "run", mock._run)
         # Also patch Path.cwd() to return tmp_path
         monkeypatch.setattr("pathlib.Path.cwd", lambda: tmp_path)
-        return original_run(args)
+        return original_run(args, progress_token=progress_token)
 
     monkeypatch.setattr(mcp_mod, "_run_benefit_navigator", patched_run_benefit_navigator)
 

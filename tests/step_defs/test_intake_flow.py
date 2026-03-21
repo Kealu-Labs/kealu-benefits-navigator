@@ -114,7 +114,7 @@ def execute_tool(ctx, monkeypatch):
     # Mock _run_benefit_navigator to avoid actually calling kvr
     import benefit_navigator.mcp_server as mcp_mod
 
-    monkeypatch.setattr(mcp_mod, "_run_benefit_navigator", lambda args: "WORKFLOW_TRIGGERED")
+    monkeypatch.setattr(mcp_mod, "_run_benefit_navigator", lambda args, **kw: "WORKFLOW_TRIGGERED")
     ctx.result = _execute_tool("navigate_benefits", ctx.args)
     ctx.tool_executed = True
 

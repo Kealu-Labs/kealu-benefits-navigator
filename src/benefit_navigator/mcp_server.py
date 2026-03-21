@@ -220,7 +220,7 @@ _TOOLS = [
 # ---------------------------------------------------------------------------
 
 
-def _execute_tool(name: str, arguments: dict[str, Any]) -> str:
+def _execute_tool(name: str, arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
     """Execute a tool by running the corresponding Vector workflow.
 
     Returns the workflow output as a string.
@@ -230,7 +230,7 @@ def _execute_tool(name: str, arguments: dict[str, Any]) -> str:
             missing = _check_intake_completeness(arguments)
             if missing:
                 return missing
-        return _run_benefit_navigator(arguments)
+        return _run_benefit_navigator(arguments, progress_token=progress_token)
     if name == "check_eligibility":
         return _run_eligibility_check(arguments)
     if name == "compare_insurance_plans":
@@ -530,8 +530,8 @@ def _format_intake_response(
 
 
 
-def _run_benefit_navigator(args: dict[str, Any]) -> str:
-    """Run the full benefit-navigator workflow."""
+def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None = None) -> str:
+    """Run the full benefit-navigator workflow with optional progress streaming."""
     import json
     import shutil
     import subprocess
@@ -552,6 +552,9 @@ def _run_benefit_navigator(args: dict[str, Any]) -> str:
             "--run-id",
             run_id,
         ]
+
+        if progress_token:
+            cmd.extend(["--phase-stream", "stdout"])
 
         var_keys = [
             "household_profile",
@@ -577,12 +580,19 @@ def _run_benefit_navigator(args: dict[str, Any]) -> str:
                 cmd.extend(["--var", f"{key}={val}"])
 
         logger.info("Running: %s", " ".join(cmd))
-        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if progress_token:
+            # Stream mode: read phase events in real time
+            returncode = _run_with_progress(cmd, progress_token)
+        else:
+            # Simple mode: wait for completion
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            returncode = result.returncode
 
         log_path = Path.cwd() / ".workforce" / run_id / "decision.jsonl"
 
         if not log_path.exists():
-            return f"Workflow failed to produce decision log. Exit code {result.returncode}.\nSTDOUT: {result.stdout[:500]}\nSTDERR: {result.stderr[:500]}"
+            return f"Workflow failed to produce decision log. Exit code {returncode}."
 
         phase_outputs = {}
         with open(log_path) as f:
@@ -597,6 +607,73 @@ def _run_benefit_navigator(args: dict[str, Any]) -> str:
     except Exception as e:
         logger.exception("benefit-navigator workflow failed")
         return f"Error running benefit navigator: {e}"
+
+
+_PHASE_STREAM_PREFIX = "[PHASE_STREAM] "
+
+
+def _run_with_progress(cmd: list[str], progress_token: str) -> int:
+    """Run kvr with --phase-stream stdout, emitting MCP progress notifications.
+
+    Reads stdout line by line. Lines prefixed with [PHASE_STREAM] are parsed
+    as phase events and translated to MCP notifications/progress messages.
+    """
+    import subprocess
+
+    completed_phases = 0
+    total_phases = 0
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        for line in proc.stdout:
+            line = line.rstrip("\n")
+            if not line.startswith(_PHASE_STREAM_PREFIX):
+                continue
+
+            try:
+                event = json.loads(line[len(_PHASE_STREAM_PREFIX):])
+            except json.JSONDecodeError:
+                continue
+
+            event_type = event.get("event_type", "")
+            phase = event.get("phase", "")
+            metadata = event.get("metadata", {})
+
+            if event_type == "workflow_start":
+                total_phases = event.get("total_phases", 0)
+                _send_progress(progress_token, 0, total_phases, "Starting workflow...")
+
+            elif event_type == "phase_start":
+                idx = metadata.get("phase_index", 0)
+                total = metadata.get("total_phases", total_phases)
+                phase_label = phase.replace("-", " ").title()
+                _send_progress(progress_token, completed_phases, total, f"Running: {phase_label}")
+
+            elif event_type == "phase_complete":
+                completed_phases += 1
+                phase_label = phase.replace("-", " ").title()
+                _send_progress(progress_token, completed_phases, total_phases, f"Completed: {phase_label}")
+
+    finally:
+        proc.wait()
+
+    return proc.returncode
+
+
+def _send_progress(token: str, progress: int, total: int, message: str) -> None:
+    """Write an MCP notifications/progress message to stdout."""
+    notification = {
+        "jsonrpc": "2.0",
+        "method": "notifications/progress",
+        "params": {
+            "progressToken": token,
+            "progress": progress,
+            "total": total,
+            "message": message,
+        },
+    }
+    sys.stdout.write(json.dumps(notification, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
 
 
 def _run_eligibility_check(args: dict[str, Any]) -> str:
@@ -908,7 +985,8 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
     if method == "tools/call":
         tool_name = params.get("name", "")
         arguments = params.get("arguments", {})
-        output = _execute_tool(tool_name, arguments)
+        progress_token = params.get("_meta", {}).get("progressToken")
+        output = _execute_tool(tool_name, arguments, progress_token=progress_token)
         return _jsonrpc_result(
             req_id,
             {
