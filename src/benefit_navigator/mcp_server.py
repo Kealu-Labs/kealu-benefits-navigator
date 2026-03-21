@@ -659,6 +659,11 @@ def _run_benefit_navigator(args: dict[str, Any], *, progress_token: str | None =
             run_id,
         ]
 
+        # Pass through KVR_TOOL env var as --tool flag for AI provider selection
+        kvr_tool = os.environ.get("KVR_TOOL")
+        if kvr_tool:
+            cmd.extend(["--tool", kvr_tool])
+
         if progress_token:
             cmd.extend(["--phase-stream", "stdout"])
 
