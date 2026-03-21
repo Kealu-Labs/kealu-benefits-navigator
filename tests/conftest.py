@@ -182,14 +182,13 @@ def mock_kvr(tmp_path, monkeypatch):
         def _run(self, cmd, **kwargs):
             self.called_with.append(list(cmd))
 
-            # Capture var-file data before it gets cleaned up
+            # Capture --var key=value pairs
             for i, arg in enumerate(cmd):
-                if arg == "--var-file" and i + 1 < len(cmd):
-                    try:
-                        import pathlib
-                        self.var_file_data = json.loads(pathlib.Path(cmd[i + 1]).read_text())
-                    except (FileNotFoundError, json.JSONDecodeError):
-                        pass
+                if arg == "--var" and i + 1 < len(cmd):
+                    kv = cmd[i + 1]
+                    if "=" in kv:
+                        k, v = kv.split("=", 1)
+                        self.var_file_data[k] = v
 
             # Extract run-id from command
             run_id = "mock-run-001"
