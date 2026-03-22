@@ -1,0 +1,351 @@
+# Kealu Benefits Navigator License v1.0
+
+**Effective Date: January 2026**
+
+This license governs your use of the Kealu Benefits Navigator software, including its AI agents, navigation logic, workflow definitions, prompts, and associated artifacts (collectively, the "Software").
+
+---
+
+## PREAMBLE
+
+This License enables evaluation and noncommercial use while protecting the intellectual property and competitive position of Kealu Inc. The License establishes clear boundaries between permitted noncommercial use and activities that require a separate commercial agreement.
+
+Kealu Benefits Navigator represents significant investment in research, development, and innovation in AI-powered benefits navigation. The Software embodies proprietary technology protected by trade secrets and multiple pending patent applications. This License ensures that while users can benefit from and study the Software, Kealu retains the ability to sustain continued development and improvement, and to pursue its commercial mission.
+
+**NOTICE: PATENT PENDING** — This Software incorporates inventions that are the subject of pending patent applications.
+
+---
+
+## Section 1: DEFINITIONS
+
+**"Benefits Navigation"** means the process of helping individuals understand, compare, select, and enroll in health insurance, government assistance programs, and related benefits.
+
+**"Competing Product"** means any product, service, or offering that provides substantially similar functionality to the Software, including AI-powered benefits navigation, health plan comparison, or government assistance guidance capabilities.
+
+**"Derivative Work"** means any modification, adaptation, enhancement, translation, or work that is based upon or incorporates the Software or any portion thereof.
+
+**"Noncommercial Purpose"** means personal research, experimentation, education, hobby projects, or use by a charitable organization, educational institution, public research organization, public safety or health organization, or government institution, in each case without any commercial application or financial gain.
+
+**"Licensee" or "You"** means the individual or legal entity exercising rights under this License.
+
+**"Licensor"** means Kealu Inc. and its authorized contributors.
+
+**"Output"** means any content, recommendations, comparisons, or artifacts generated through use of the Software.
+
+**"Use"** means any operation of the Software, including execution, integration, deployment, hosting, or provision as a service.
+
+---
+
+## Section 2: GRANT OF RIGHTS
+
+Subject to the terms and conditions of this License, including the Restrictions in Section 4 and the Use Restrictions in Attachment A, the Licensor hereby grants You a limited, worldwide, non-exclusive, non-transferable, non-sublicensable license to:
+
+**(a) Evaluate** the Software for assessment and study purposes for Noncommercial Purposes only;
+
+**(b) Use** the Software solely for Noncommercial Purposes;
+
+**(c) Report Issues** to the Licensor regarding bugs or defects You encounter during authorized use.
+
+Any use beyond Noncommercial Purposes requires a separate commercial license from the Licensor pursuant to Section 6.
+
+---
+
+## Section 3: CONDITIONS
+
+### 3.1 Attribution
+
+You must retain all copyright, attribution, patent, trademark, and license notices in all copies or substantial portions of the Software.
+
+### 3.2 No Redistribution
+
+You may not distribute, publish, sublicense, sell, lease, or otherwise transfer the Software or any portion thereof to any third party without prior written consent from the Licensor.
+
+### 3.3 No Derivative Works for Distribution
+
+You may not distribute, publish, or make available any Derivative Work based on the Software without prior written consent from the Licensor. Internal modifications for Your own Noncommercial Use are permitted but may not be shared externally.
+
+### 3.4 Notice of AI-Generated Content
+
+When Output from the Software is presented to end users or third parties, You must provide clear and intelligible disclosure that such Output was generated or processed by an AI system and does not constitute professional legal, financial, or medical advice.
+
+### 3.5 Human Oversight
+
+You must maintain meaningful human oversight over any deployment where the Software's Output may affect individual rights, safety, or access to essential services including health coverage and government benefits.
+
+### 3.6 Security Notifications
+
+You agree to promptly notify the Licensor of any security vulnerabilities You discover in the Software.
+
+---
+
+## Section 4: RESTRICTIONS
+
+**Your rights under this License are expressly conditioned on compliance with all of the following restrictions:**
+
+### 4.1 No Commercial Use
+
+You may not use the Software, or any portion thereof, for any commercial purpose, including but not limited to revenue-generating activities, commercial product development, or any use that directly or indirectly generates financial gain.
+
+### 4.2 No Competing Products
+
+You may not use the Software, or any portion thereof, to develop, operate, market, sell, or distribute any Competing Product.
+
+### 4.3 No Commercial Service Offering
+
+You may not offer the Software, or any functionality derived therefrom, as a managed service, hosted service, SaaS offering, API service, or any other offering to third parties without prior written consent from the Licensor.
+
+### 4.4 No Embedding in Third-Party Products
+
+You may not embed, integrate, or bundle the Software or its functionality into any product, platform, or service that is distributed to or used by third parties without prior written consent from the Licensor.
+
+### 4.5 No Circumvention
+
+You may not remove, alter, or obscure any licensing, copyright, or proprietary notices. You may not use technical measures to circumvent any limitations or restrictions in this License.
+
+### 4.6 No Reverse Engineering
+
+You may not reverse engineer, decompile, disassemble, or otherwise attempt to derive the source code, algorithms, data structures, or underlying ideas of the Software beyond what is provided. You may not create any derivative implementation based on observation of the Software's functionality.
+
+### 4.7 No AI Training
+
+You may not use the Software, its source code, architecture, workflows, prompts, data, or Output — in whole or in part — to train, fine-tune, distill, evaluate, benchmark, or otherwise develop any artificial intelligence system, machine learning model, large language model, neural network, or similar technology, regardless of whether such system competes with Kealu's products or services.
+
+### 4.8 No Resale of Access
+
+You may not resell, sublicense, or otherwise provide paid or unpaid access to the Software or its capabilities to third parties.
+
+---
+
+## Section 5: INTELLECTUAL PROPERTY
+
+### 5.1 Ownership
+
+The Software, including all intellectual property rights therein, is and shall remain the exclusive property of the Licensor. This License does not convey any ownership rights.
+
+### 5.2 Patents
+
+The Software embodies inventions covered by pending patent applications. **PATENT PENDING.** This License does not grant any patent license, express or implied. The Licensor reserves all patent rights, and any use of the Software beyond what is expressly permitted may constitute patent infringement.
+
+### 5.3 Contributions
+
+Any contributions, feedback, bug fixes, or suggestions You provide to the Licensor may be used by the Licensor without restriction or compensation.
+
+### 5.4 Output Ownership
+
+You retain ownership of Output generated through Your authorized use of the Software, subject to the terms of this License and any third-party rights in training data or models.
+
+### 5.5 Trademarks
+
+This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for attribution.
+
+---
+
+## Section 6: COMMERCIAL LICENSING
+
+### 6.1 Commercial Use
+
+For any commercial use, or for any use not expressly permitted by this License, You must obtain a commercial license from the Licensor.
+
+### 6.2 Contact for Licensing
+
+To inquire about commercial licensing, partnership opportunities, or permitted uses not covered by this License, contact: **licensing@kealu.com**
+
+---
+
+## Section 7: USE RESTRICTIONS (ETHICAL REQUIREMENTS)
+
+**Your rights under this License are expressly conditioned on compliance with the Use Restrictions set forth in Attachment A.** These restrictions apply to all use of the Software, regardless of whether under this License or a commercial agreement.
+
+---
+
+## Section 8: TERMINATION
+
+### 8.1 Automatic Termination
+
+This License and all rights granted hereunder will terminate automatically and immediately upon:
+- Any breach of the Restrictions in Section 4;
+- Any violation of the Use Restrictions in Attachment A;
+- Any other material breach of this License.
+
+### 8.2 Effect of Termination
+
+Upon termination, You must:
+- Immediately cease all Use of the Software;
+- Destroy all copies of the Software in Your possession or control;
+- Certify such destruction in writing upon request.
+
+### 8.3 Survival
+
+Sections 5 (Intellectual Property), 9 (Disclaimer), 10 (Limitation of Liability), and Attachment A (Use Restrictions) survive termination.
+
+---
+
+## Section 9: DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, COMPLETENESS, TITLE, OR NON-INFRINGEMENT.
+
+THE LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL MEET YOUR REQUIREMENTS, OPERATE WITHOUT INTERRUPTION, OR BE ERROR-FREE. THE LICENSOR MAKES NO REPRESENTATIONS REGARDING THE ACCURACY OR COMPLETENESS OF BENEFITS INFORMATION PROVIDED BY THE SOFTWARE.
+
+YOU ASSUME ALL RISK ASSOCIATED WITH THE USE OF THE SOFTWARE. OUTPUTS FROM THE SOFTWARE DO NOT CONSTITUTE LEGAL, FINANCIAL, OR MEDICAL ADVICE.
+
+---
+
+## Section 10: LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, BUSINESS OPPORTUNITIES, OR GOODWILL, ARISING OUT OF OR IN CONNECTION WITH THIS LICENSE OR THE USE OF THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+THE LICENSOR'S TOTAL LIABILITY UNDER THIS LICENSE SHALL NOT EXCEED ONE HUNDRED US DOLLARS ($100).
+
+---
+
+## Section 11: GENERAL PROVISIONS
+
+### 11.1 Severability
+
+If any provision of this License is held invalid or unenforceable, the remaining provisions shall continue in full force and effect.
+
+### 11.2 No Waiver
+
+Failure to enforce any provision of this License does not constitute a waiver of that provision or any other provision.
+
+### 11.3 Entire Agreement
+
+This License constitutes the entire agreement between the parties concerning the Software and supersedes all prior agreements, proposals, and understandings.
+
+### 11.4 Amendments
+
+This License may only be modified by a written document signed by both parties or by the Licensor publishing a new version of this License.
+
+### 11.5 Assignment
+
+You may not assign or transfer this License or any rights hereunder without the prior written consent of the Licensor.
+
+### 11.6 Governing Law
+
+This License shall be governed by and construed in accordance with the laws of the State of Florida, United States, without regard to conflict of law principles.
+
+### 11.7 Dispute Resolution
+
+Any disputes arising from this License shall be resolved through binding arbitration in accordance with the rules of the American Arbitration Association, with proceedings conducted in English in Miami, Florida.
+
+---
+
+## ATTACHMENT A: USE RESTRICTIONS
+
+**You agree not to Use the Software, Derivative Works, or Output:**
+
+### A.1 — Legal Compliance
+
+In any way that violates any applicable national, federal, state, local, or international law or regulation.
+
+### A.2 — Protection of Minors
+
+For the purpose of exploiting, harming, or attempting to exploit or harm minors in any way, including but not limited to generating content that sexualizes minors or facilitates contact between minors and predatory individuals.
+
+### A.3 — Disinformation and Deception
+
+To generate or disseminate verifiably false information with the purpose of harming others, manipulating public opinion, or interfering with democratic processes, including elections.
+
+### A.4 — Personal Data Exploitation
+
+To generate, collect, process, or disseminate personal identifiable information in a manner that can be used to harm, track, surveil, or profile an individual without their informed consent.
+
+### A.5 — Harassment and Abuse
+
+To defame, disparage, threaten, stalk, or otherwise harass individuals or groups.
+
+### A.6 — Autonomous Consequential Decisions
+
+For fully automated decision-making that:
+- Adversely impacts an individual's legal rights;
+- Creates or modifies binding, enforceable obligations;
+- Determines access to employment, housing, credit, education, or essential services;
+- Affects individual liberty or freedom of movement;
+
+without meaningful human oversight and the ability for affected individuals to seek human review.
+
+### A.7 — Discrimination
+
+For any Use intended to or which has the effect of discriminating against or harming individuals or groups based on:
+- Legally protected characteristics or categories;
+- Online or offline social behavior;
+- Known or predicted personal or personality characteristics;
+- Inferred political, religious, or ideological beliefs.
+
+### A.8 — Exploitation of Vulnerabilities
+
+To exploit vulnerabilities of specific groups based on their age, social, physical, or mental characteristics in order to materially distort behavior in a manner likely to cause physical or psychological harm.
+
+### A.9 — Weapons and Violence
+
+(a) For the development, operation, or targeting of autonomous weapons systems, including lethal autonomous weapons;
+
+(b) To facilitate, plan, or execute acts of violence, terrorism, or armed conflict;
+
+(c) For military targeting, kill chain automation, or battlefield decision-making without human authorization for each specific action.
+
+### A.10 — Mass Surveillance
+
+(a) For mass surveillance, bulk data collection, or population-scale monitoring without individualized suspicion and appropriate legal authorization;
+
+(b) For social credit systems, behavioral scoring, or predictive policing that assess individuals based on aggregated behavioral data;
+
+(c) For real-time biometric identification in publicly accessible spaces, except for targeted law enforcement purposes with appropriate judicial oversight.
+
+### A.11 — Criminal Justice and Immigration
+
+To generate or process information for use in administration of justice, law enforcement, immigration, or asylum processes for the purpose of:
+- Predicting individual criminal behavior or recidivism;
+- Assessing credibility of statements or testimony;
+- Making detention, sentencing, or deportation recommendations;
+- Profiling individuals based on nationality, ethnicity, or religion.
+
+### A.12 — Medical and Health
+
+To provide medical diagnosis, treatment recommendations, or clinical decision support that is presented as a substitute for professional medical judgment, except in systems explicitly designed for clinical use with appropriate regulatory approval and physician oversight.
+
+### A.13 — Critical Infrastructure
+
+To interfere with, disrupt, or damage critical infrastructure, including but not limited to energy grids, water systems, transportation networks, financial systems, healthcare facilities, or emergency services.
+
+### A.14 — Security Circumvention
+
+(a) To circumvent, disable, or interfere with security controls, authentication mechanisms, or access restrictions;
+
+(b) To develop malware, ransomware, or other malicious software;
+
+(c) To conduct unauthorized penetration testing or exploitation of vulnerabilities.
+
+### A.15 — Impersonation and Fraud
+
+(a) To impersonate individuals, organizations, or government entities without authorization;
+
+(b) To generate fraudulent documents, credentials, or communications;
+
+(c) To facilitate financial fraud, identity theft, or social engineering attacks.
+
+### A.16 — Intellectual Property Circumvention
+
+To systematically circumvent intellectual property protections, digital rights management, or licensing restrictions of third-party content or systems.
+
+### A.17 — Child Safety Content
+
+To generate, distribute, or facilitate access to child sexual abuse material (CSAM) or any content that depicts or promotes the sexual exploitation of minors.
+
+### A.18 — Suppression of Rights
+
+To suppress, censor, or retaliate against individuals exercising their rights to free expression, peaceful assembly, or political participation, or to identify and target human rights defenders, journalists, or whistleblowers.
+
+---
+
+## CONTACT
+
+For licensing inquiries: **licensing@kealu.com**
+
+For general questions about this License: **legal@kealu.com**
+
+To report violations: **compliance@kealu.com**
+
+---
+
+**Copyright © 2026 Kealu Inc. All rights reserved.**
