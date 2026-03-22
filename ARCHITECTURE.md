@@ -12,11 +12,11 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  MCP Server (benefits_navigator)                              stdlib-only   │
 │                                                                             │
-│  ┌──────────────┐  ┌───────────────────┐  ┌──────────────────────────────┐ │
-│  │  Tool Router  │  │  Tiered Intake    │  │  Household Parser            │ │
-│  │  & Dispatch   │  │  (3-tier profile  │  │  (_parse_household_for_api,  │ │
-│  │               │  │   completeness)   │  │   _parse_income)             │ │
-│  └──────┬───────┘  └───────────────────┘  └──────────────────────────────┘ │
+│  ┌──────────────┐  ┌───────────────────┐  ┌──────────────────────────────┐  │
+│  │  Tool Router │  │  Tiered Intake    │  │  Household Parser            │  │
+│  │  & Dispatch  │  │  (3-tier profile  │  │  (_parse_household_for_api,  │  │
+│  │              │  │   completeness)   │  │   _parse_income)             │  │
+│  └──────┬───────┘  └───────────────────┘  └──────────────────────────────┘  │
 │         │                                                                   │
 │  ┌──────┴───────────────────────────────────────────────────────────────┐   │
 │  │                        Tool Execution Layer                          │   │
