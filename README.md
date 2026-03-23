@@ -1,5 +1,7 @@
 # Benefit & Insurance Navigator
 
+[![Kealu Benefits Navigator — Why We Built This](https://img.youtube.com/vi/yvDCr1dKxAk/maxresdefault.jpg)](https://www.youtube.com/watch?v=yvDCr1dKxAk)
+
 Model-agnostic multi-agent system that discovers government benefits and insurance plans, validates eligibility, and produces prioritized enrollment action plans. Built with [Kealu Vector](https://kealu.com), an enterprise AI workflow orchestrator, and integrated with **Google Antigravity** via MCP. Kealu Vector supports any LLM provider — our target environment uses **Gemini**.
 
 ## The Problem
