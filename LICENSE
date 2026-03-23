@@ -176,7 +176,7 @@ Upon termination, You must:
 
 ### 8.3 Survival
 
-Sections 5 (Intellectual Property), 9 (Disclaimer), 10 (Limitation of Liability), and Attachment A (Use Restrictions) survive termination.
+Sections 5 (Intellectual Property), 9 (Disclaimer), 10 (Limitation of Liability), 11 (Indemnification), and Attachment A (Use Restrictions) survive termination.
 
 ---
 
@@ -198,33 +198,53 @@ THE LICENSOR'S TOTAL LIABILITY UNDER THIS LICENSE SHALL NOT EXCEED ONE HUNDRED U
 
 ---
 
-## Section 11: GENERAL PROVISIONS
+## Section 11: INDEMNIFICATION
 
-### 11.1 Severability
+### 11.1 Licensee's Indemnification Obligation
+
+You agree to indemnify, defend, and hold harmless the Licensor and its officers, directors, employees, agents, licensors, and successors (collectively, **"Kealu Indemnitees"**) from and against any and all claims, demands, suits, proceedings, liabilities, losses, damages, costs, and expenses (including reasonable attorneys' fees) (**"Claims"**) arising out of or relating to:
+
+**(a)** Your Use of the Software in violation of this License, including any breach of Section 4 (Restrictions) or Attachment A (Use Restrictions);
+
+**(b)** Any Output generated through Your Use of the Software that You distribute or act upon;
+
+**(c)** Your negligence, willful misconduct, or fraud in connection with Your Use of the Software;
+
+**(d)** Any claim by a third party arising from Your Use of the Software beyond the scope of rights granted in Section 2.
+
+### 11.2 Indemnification Procedure
+
+The Licensor shall: (i) promptly notify You in writing of any Claim for which indemnification is sought (provided that failure to provide prompt notice shall not relieve You of Your obligations except to the extent You are materially prejudiced by such failure); (ii) give You sole control of the defense and settlement of such Claim, provided that You may not settle any Claim that imposes any obligation, restriction, or liability on any Kealu Indemnitee without the Licensor's prior written consent; and (iii) provide You with reasonable cooperation in the defense of such Claim at Your expense. The Licensor retains the right to participate in the defense of any Claim at its own expense with counsel of its choosing.
+
+---
+
+## Section 12: GENERAL PROVISIONS
+
+### 12.1 Severability
 
 If any provision of this License is held invalid or unenforceable, the remaining provisions shall continue in full force and effect.
 
-### 11.2 No Waiver
+### 12.2 No Waiver
 
 Failure to enforce any provision of this License does not constitute a waiver of that provision or any other provision.
 
-### 11.3 Entire Agreement
+### 12.3 Entire Agreement
 
 This License constitutes the entire agreement between the parties concerning the Software and supersedes all prior agreements, proposals, and understandings.
 
-### 11.4 Amendments
+### 12.4 Amendments
 
 This License may only be modified by a written document signed by both parties or by the Licensor publishing a new version of this License.
 
-### 11.5 Assignment
+### 12.5 Assignment
 
 You may not assign or transfer this License or any rights hereunder without the prior written consent of the Licensor.
 
-### 11.6 Governing Law
+### 12.6 Governing Law
 
 This License shall be governed by and construed in accordance with the laws of the State of Florida, United States, without regard to conflict of law principles.
 
-### 11.7 Dispute Resolution
+### 12.7 Dispute Resolution
 
 Any disputes arising from this License shall be resolved through binding arbitration in accordance with the rules of the American Arbitration Association, with proceedings conducted in English in Miami, Florida.
 
