@@ -3,6 +3,19 @@
 // Licensed under the Kealu Vector License v1.0 — PATENT PENDING
 //
 
+/**
+ * GET /api/session
+ *
+ * Reads or creates the anonymous session. This route is the canonical
+ * source of truth for whether a session exists and what intake tier the user
+ * is on. It never returns 401/403 — a missing or expired cookie always results
+ * in a fresh session + Set-Cookie header.
+ *
+ * Security note: PII fields (vars — income, medications, household composition)
+ * are deliberately excluded from the response body. Only display-safe fields
+ * (tier, messages, runId, runStatus) are returned.
+ */
+
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { sessionStore, SESSION_TTL_MS } from '@/lib/session-store';
@@ -51,7 +64,10 @@ export async function GET(req: Request): Promise<Response> {
     runStatus: session.runStatus,
   };
 
-  // If we created a new session, also set cookie header on the response
+  // Dual Set-Cookie: cookieStore.set() above handles the Next.js server-component
+  // cookie jar (picked up by page.tsx on SSR), while the explicit response header
+  // ensures the browser actually receives the cookie even in non-SSR contexts
+  // (e.g., direct fetch calls from client components or tests).
   if (newSessionId) {
     const res = NextResponse.json(body);
     res.headers.set(

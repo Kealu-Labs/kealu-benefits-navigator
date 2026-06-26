@@ -12,9 +12,20 @@ The people who need these programs most are the least equipped to navigate them.
 
 **This is an information problem.** The data exists. The eligibility rules are public. But they're scattered across hundreds of `.gov` websites, updated on different schedules, and written in language that assumes you already know which program to look for. What's missing is a system that can gather all of it, validate it against your specific situation, and tell you exactly what to do — with the same rigor a professional counselor would apply, but accessible to anyone with a conversation.
 
+## Interfaces
+
+The benefit navigator can be accessed in two ways:
+
+| Interface | Best for | How it works |
+|-----------|----------|-------------|
+| **Web App** (`web/`) | Self-serve users — no setup needed | Next.js 15 chat UI with guided intake, live SSE progress, rendered report |
+| **Google Antigravity (MCP)** | Developers & power users in an AI IDE | MCP server connects Antigravity to the 5-phase workflow over stdio |
+
+Both interfaces run the same underlying Kealu Vector workflow and Python tooling — the web app is an additional entry point, not a replacement.
+
 ## How It Works
 
-A user asks Antigravity for help with benefits. Through the MCP server, Vector orchestrates a 5-phase workflow where each phase is handled by a specialized agent (Gemini in our target configuration, but Vector is model-agnostic):
+A user provides their household details through either the web app or Antigravity. Through the MCP server, Vector orchestrates a 5-phase workflow where each phase is handled by a specialized agent (Gemini in our target configuration, but Vector is model-agnostic):
 
 ```
                   ┌──────────────┐         ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
@@ -86,7 +97,14 @@ In a production deployment, Vector's enterprise features add further controls: d
 
 ```
 kealu-benefits-navigator/
-├── src/benefits_navigator/     # MCP server (stdlib-only core, pypdf optional)
+├── web/                       # Next.js 15 web interface (TypeScript)
+│   ├── src/
+│   │   ├── app/api/           # Route handlers: session, intake, workflow SSE, report
+│   │   ├── components/        # Chat UI, phase tracker, report view, error banner
+│   │   ├── lib/               # Session store, KVR runner, intake flow, report assembler
+│   │   └── instrumentation.ts # Startup checks + orphan run-directory sweep
+│   └── tests/                 # 212 TypeScript tests (Vitest unit/API/integration + Playwright E2E)
+├── src/benefits_navigator/    # MCP server (stdlib-only core, pypdf optional)
 │   ├── mcp_server.py          # MCP JSON-RPC 2.0 over stdio + tool dispatch
 │   ├── marketplace_api.py     # Healthcare.gov Marketplace API client (live plan data)
 │   ├── form_filler.py         # Official form filling (pypdf) with worksheet fallback
@@ -108,7 +126,7 @@ kealu-benefits-navigator/
 │   └── action-planner.md
 ├── contexts/community/        # Domain knowledge contexts
 │   └── benefits-navigator.md   # FPL tables, program reference, quality standards
-├── tests/                     # 78 BDD tests (pytest-bdd) + 3 integration tests
+├── tests/                     # 79 Python BDD tests (pytest-bdd) + 3 integration tests
 │   ├── features/              # Gherkin scenarios
 │   └── step_defs/             # Step implementations
 ├── .env.example               # CMS API key template
@@ -117,11 +135,32 @@ kealu-benefits-navigator/
 
 ## Prerequisites
 
-- Python 3.11+
 - [Kealu Vector](https://kealu.com) CLI (`kvr`) >= 0.114.13 installed and on PATH
+- **Web app**: Node.js ≥ 18
+- **MCP server / CLI**: Python 3.11+
 - (Optional) [CMS Marketplace API key](https://developer.cms.gov/marketplace-api/key-request.html) for live insurance plan data
 
 ## Setup
+
+### Web App
+
+```bash
+cd web
+cp .env.example .env.local          # Add CMS_API_KEY if available
+npm install
+npm run dev                          # http://localhost:3000
+```
+
+Verify readiness:
+
+```bash
+curl http://localhost:3000/api/health
+# { "kvr": "ok", "cms_api_key": "set", "version": "0.225.0" }
+```
+
+> **Deployment note**: The web app streams SSE connections that stay open for up to 30 minutes while KVR runs the 5-phase workflow. Most managed platforms (Vercel Hobby, Railway free tier) impose per-request timeouts of 30–300 seconds that will terminate long-running workflows. **Self-host** using `npm run build && npm start`, or use a platform that supports long-lived streaming responses (Vercel Pro with `maxDuration = 0`, Fly.io, Render). See [`web/README.md`](web/README.md) for full deployment guidance.
+
+### MCP Server (Python)
 
 ```bash
 # Create virtual environment
@@ -137,6 +176,10 @@ cp .env.example .env
 ```
 
 ## Usage
+
+### Web App
+
+Navigate to `http://localhost:3000` after running `npm run dev` from the `web/` directory. The app guides you through a tiered intake conversation and displays live workflow progress and a rendered report — no account required.
 
 ### With Google Antigravity (MCP)
 
@@ -204,8 +247,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system diagram, data flow, k
 
 ## Technologies
 
+- **Next.js 15 + TypeScript** — Web interface with chat UI, SSE streaming, and server-rendered report (under `web/`)
 - **Gemini** (target environment) — Powers all 5 specialized agents through Kealu Vector's model-agnostic orchestration
-- **Google Antigravity** — Agent-first IDE providing the conversational interface via MCP
+- **Google Antigravity** — Agent-first IDE providing an alternative conversational interface via MCP
 - **Healthcare.gov Marketplace API** — Live insurance plan data, subsidy calculations, and eligibility estimates from CMS
 - **MCP (Model Context Protocol)** — stdio-based JSON-RPC 2.0 connecting Antigravity to the benefit navigator
 - **Kealu Vector** — Enterprise workflow orchestrator with parallel phases, quality gates, persona-driven agents, and decision logging

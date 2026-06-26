@@ -8,6 +8,15 @@ import type { Session } from '@/types/session';
 /** 2-hour session TTL in milliseconds. */
 export const SESSION_TTL_MS = 7_200_000;
 
+/**
+ * In-memory session store for the Next.js server process.
+ *
+ * Sessions are keyed by UUID v4 session ID (the value stored in the `session`
+ * httpOnly cookie). All state is in-process — nothing is persisted to disk or a
+ * database. Sessions are automatically evicted after SESSION_TTL_MS milliseconds.
+ *
+ * Thread safety: Node.js is single-threaded, so no locking is required.
+ */
 export class SessionStore {
   private readonly _sessions = new Map<string, Session>();
 

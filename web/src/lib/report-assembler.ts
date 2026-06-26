@@ -24,20 +24,40 @@ export const PHASE_DISPLAY_NAMES: Record<string, string> = {
   'action-plan': 'Action Plan',
 };
 
+/** A single rendered phase section in the assembled report. */
 export interface ReportSection {
+  /** Phase identifier matching an entry in PHASE_ORDER (e.g., "action-plan"). */
   phaseName: string;
+  /** Human-readable title for the collapsible section header. */
   displayName: string;
+  /** Raw Markdown content read from the phase's `.md` output file. */
   content: string;
+  /** True for the action-plan phase — expanded by default in the UI. */
   expanded: boolean;
 }
 
+/** The assembled multi-phase report returned by the report API route. */
 export interface ReportPayload {
+  /** Sections in PHASE_ORDER sequence. Always 5 entries (missing phases get a placeholder). */
   sections: ReportSection[];
+  /**
+   * Text extracted from the `## Bottom Line` section of the action-plan output.
+   * Empty string if the action-plan did not include a Bottom Line section.
+   */
   bottomLine: string;
 }
 
+/**
+ * Error thrown by `assembleReport` when the run directory or phase files are missing.
+ *
+ * `code` discriminates the failure mode so the report route can return an appropriate
+ * HTTP status (403 vs 422) and message to the client.
+ */
 export interface AssembleError extends Error {
+  /** "RUN_DIR_MISSING" — the .workforce/{runId}/ directory does not exist. */
+  /** "INCOMPLETE" — the directory exists but all phase files are absent. */
   code: 'RUN_DIR_MISSING' | 'INCOMPLETE';
+  /** List of phase names whose .md files were not found. */
   missingPhases?: string[];
 }
 
@@ -118,17 +138,12 @@ export async function assembleReport(
     });
   }
 
-  // Require all 5 phases to be present
+  // Throw INCOMPLETE only when every phase file is missing — if even one file
+  // exists the report is partially usable (missing phases got placeholder text above).
+  // Individual missing phase files do not fail the whole assembly; only a completely
+  // empty run directory (e.g., KVR crashed before writing any output) triggers this.
   if (missingPhases.length === PHASE_ORDER.length) {
     const error = new Error('All phase files missing — workflow incomplete') as AssembleError;
-    error.code = 'INCOMPLETE';
-    error.missingPhases = missingPhases;
-    throw error;
-  }
-
-  // If any phases are missing beyond the placeholder substitution, treat as incomplete
-  if (missingPhases.length > 0 && missingPhases.length === PHASE_ORDER.length) {
-    const error = new Error('Workflow incomplete') as AssembleError;
     error.code = 'INCOMPLETE';
     error.missingPhases = missingPhases;
     throw error;

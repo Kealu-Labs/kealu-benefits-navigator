@@ -3,6 +3,15 @@
 // Licensed under the Kealu Vector License v1.0 — PATENT PENDING
 //
 
+/**
+ * Root layout — server component shared by every page in the app.
+ *
+ * Sets the document language, applies the Inter font globally, and configures
+ * Next.js metadata (title/description). Security headers (X-Frame-Options, CSP)
+ * are set in next.config.ts via the `headers()` function rather than here, so
+ * they apply to all responses including API routes.
+ */
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';

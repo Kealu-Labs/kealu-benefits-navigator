@@ -28,6 +28,7 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
   error: 'Error',
 };
 
+/** Map a PhaseStatus to the Tailwind utility classes for its tile's border/background/text color. */
 function phaseColorClass(status: PhaseStatus): string {
   switch (status) {
     case 'running':
@@ -163,7 +164,10 @@ export default function PhaseTracker({ runId, onComplete, onError }: PhaseTracke
     }
   }
 
+  // Phases 1+2 (benefits-research, insurance-research) run in parallel in the workflow;
+  // render them in a 2-column grid to make that concurrency visible to the user.
   const parallelPhases = PHASES.slice(0, 2);
+  // Phases 3–5 run sequentially after both parallel phases complete.
   const sequentialPhases = PHASES.slice(2);
 
   return (
@@ -200,6 +204,13 @@ export default function PhaseTracker({ runId, onComplete, onError }: PhaseTracke
   );
 }
 
+/**
+ * PhaseTile — renders a single phase card with status indicator and animated progress stripe.
+ *
+ * @param label  - Human-readable phase name shown as the card title.
+ * @param status - Current phase status; drives color scheme and progress animation.
+ * @param wide   - When true, the card spans its full container width (used for sequential phases).
+ */
 function PhaseTile({
   label,
   status,
@@ -209,6 +220,7 @@ function PhaseTile({
   status: PhaseStatus;
   wide?: boolean;
 }) {
+  // Show the animated progress stripe for any actively-running state
   const isActive = status === 'running' || status === 'rerunning';
 
   return (

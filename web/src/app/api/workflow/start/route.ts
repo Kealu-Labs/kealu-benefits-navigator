@@ -30,6 +30,9 @@ export async function POST(req: Request): Promise<Response> {
   const sessionCookieMatch = rawCookie.match(/(?:^|;\s*)session=([^;]+)/);
   const cookieValue = sessionCookieMatch?.[1] ?? cookieStore.get(COOKIE_NAME)?.value;
   const session = cookieValue ? sessionStore.get(cookieValue) : null;
+  // Fallback chain: prefer session.sessionId (populated), then raw cookie value (expired
+  // session, valid cookie), then 'anonymous' (no cookie at all). The 'anonymous' fallback
+  // allows the run to start but means session state will not be updated after spawn.
   const sessionId = session?.sessionId ?? cookieValue ?? 'anonymous';
 
   // Check for existing run (idempotency)

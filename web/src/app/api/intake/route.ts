@@ -61,7 +61,8 @@ export async function POST(req: Request): Promise<Response> {
     // Empty or malformed body — treat as empty message
   }
 
-  // Idempotency: if this exact message already exists in history, skip processing
+  // Idempotency: identical message re-POST (e.g., browser back button) is a no-op
+  // so that history does not accumulate duplicate entries.
   if (!isIdempotentSubmission(session.messages, message)) {
     // Append user message to history
     sessionStore.update(sessionId, {
@@ -71,22 +72,26 @@ export async function POST(req: Request): Promise<Response> {
       ],
     });
 
-    // Reload updated session
+    // Reload updated session after each mutation — SessionStore returns a new object
     session = sessionStore.get(sessionId)!;
 
-    // Check for skip signal
+    // Skip signal: exact "skip" string only. The "Skip remaining questions" button in
+    // ChatInterface sends the literal string "skip". Checking startsWith would risk
+    // false positives on messages that begin with the word "skip" inadvertently.
     if (message.toLowerCase() === 'skip') {
       sessionStore.update(sessionId, { skipIntake: true });
       session = sessionStore.get(sessionId)!;
     } else {
-      // Extract vars from message
+      // Extract structured vars from free-text message (ZIP, income, household profile)
       const updatedVars = parseUserMessage(message, session.vars);
       sessionStore.update(sessionId, { vars: updatedVars });
       session = sessionStore.get(sessionId)!;
     }
   }
 
-  // Determine next question or ready state
+  // Determine the next unanswered question.
+  // Returns null when all required Tier 1 fields are present OR when skipIntake is set,
+  // indicating the client should transition to the workflow start flow.
   const nextField = getNextQuestion(session.vars, session.currentTier, session.skipIntake);
 
   let body: object;

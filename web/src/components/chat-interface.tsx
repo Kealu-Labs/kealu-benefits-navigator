@@ -30,8 +30,12 @@ const WELCOME_BACK =
 const READY_MSG =
   "Great — I have enough information to get started. Launching the analysis now…";
 
+// Module-level counter for generating stable, unique per-component message IDs.
+// Using a counter (not crypto.randomUUID) keeps the ID predictable and avoids
+// a hydration mismatch: the same counter value is produced whether the component
+// is initialized during SSR or on the client.
 let _id = 0;
-function uid() {
+function uid(): string {
   return `m${++_id}`;
 }
 
@@ -113,11 +117,14 @@ export default function ChatInterface({
       const data = (await res.json()) as { type: string; field?: IntakeField };
 
       if (data.type === 'ready') {
+        // All required fields collected — show confirmation then kick off the run.
         setMessages((prev) => [
           ...prev,
           { id: uid(), role: 'assistant', content: READY_MSG },
         ]);
 
+        // POST /api/workflow/start is idempotent: if a run is already in progress
+        // for this session, the server returns the existing runId without re-spawning.
         const startRes = await fetch('/api/workflow/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -130,6 +137,7 @@ export default function ChatInterface({
           onReady(startData.runId);
           return;
         }
+        // Non-503 error (e.g., session expired between intake and start)
         setMessages((prev) => [
           ...prev,
           {

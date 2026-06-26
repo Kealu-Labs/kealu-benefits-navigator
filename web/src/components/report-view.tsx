@@ -34,6 +34,16 @@ marked.use({
   gfm: true,
 });
 
+/**
+ * Extended allowlist beyond sanitize-html defaults.
+ *
+ * Headings (h1–h6): phase outputs use markdown headings for section structure.
+ * Table elements: insurance plan comparisons heavily use markdown tables;
+ *   ALL table sub-elements must be allowed or the rendered HTML is stripped bare.
+ * div/span: needed for the `class="table-wrapper"` overflow-x container injected
+ *   by renderMarkdown before sanitization.
+ * details/summary: phase sections could include collapsible sub-sections.
+ */
 const ALLOWED_TAGS: string[] = [
   ...sanitizeHtml.defaults.allowedTags,
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',

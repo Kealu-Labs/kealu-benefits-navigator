@@ -40,23 +40,33 @@ export default function AppShell({
   const [runId, setRunId] = useState<string | undefined>(initialRunId);
   const [report, setReport] = useState<ReportPayload | undefined>(initialReport);
 
+  /** Called by ChatInterface when all intake fields are collected and a run is started. */
   function handleReady(newRunId: string) {
     setRunId(newRunId);
     setView('progress');
   }
 
+  /** Called by PhaseTracker when the action-plan phase completes and the report is fetched. */
   function handleRunComplete(payload: ReportPayload) {
     setReport(payload);
     setView('report');
   }
 
+  /**
+   * Called by ReportView "Run Again" — re-uses the same session vars to start a new run
+   * without repeating the intake conversation.
+   */
   function handleRetry(newRunId: string) {
     setRunId(newRunId);
     setView('progress');
   }
 
+  /**
+   * Called by PhaseTracker when the workflow errors out.
+   * Drops back to intake so the user sees the chat UI (session vars are preserved
+   * server-side, so the next "Run Analysis" will not re-ask intake questions).
+   */
   function handleProgressError() {
-    // Return to intake view so user can try again without repeating intake
     setView('intake');
   }
 

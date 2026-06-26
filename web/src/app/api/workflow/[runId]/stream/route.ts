@@ -6,6 +6,11 @@
 import { cookies } from 'next/headers';
 import { addController, removeController } from '@/lib/kvr-runner';
 
+// Disable Next.js route handler timeout for the SSE streaming endpoint.
+// KVR workflows can run for up to 30 minutes; the default platform timeout
+// (e.g. 30s on Vercel Edge) would terminate the SSE connection mid-run.
+export const maxDuration = 0;
+
 const COOKIE_NAME = 'session';
 const KEEPALIVE_INTERVAL_MS = 15_000;
 

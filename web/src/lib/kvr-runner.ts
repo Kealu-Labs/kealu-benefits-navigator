@@ -28,21 +28,49 @@ export const PHASE_NAMES: string[] = [
 /** ReadableStream controller type alias. */
 type StreamController = ReadableStreamDefaultController<Uint8Array>;
 
+/**
+ * Metadata for a single in-flight KVR workflow run.
+ *
+ * Lives in `activeRuns` from `startRun()` until `terminateRun()`.
+ * The `controllers` set fans out SSE payloads to every connected browser tab.
+ */
 interface ActiveRun {
+  /** The spawned KVR child process. */
   proc: ChildProcess;
+  /** UUID v4 run identifier passed to kvr via --run-id. */
   runId: string;
+  /** Session that owns this run — used for idempotency and SIGTERM on disconnect. */
   sessionId: string;
+  /** Unix timestamp (ms) when the run was spawned. */
   startedAt: number;
+  /**
+   * Unix timestamp (ms) of the last stdout activity.
+   * Reset on every successful `[PHASE_STREAM]` event to prevent idle timeout on
+   * legitimately slow phases.
+   */
   lastEventAt: number;
+  /** Active ReadableStream controllers receiving broadcasted SSE events. */
   controllers: Set<StreamController>;
+  /**
+   * setInterval handle for the idle-timeout check (runs every 30 s).
+   * Must be cleared in terminateRun() to prevent zombie timers.
+   */
   idleTimer: ReturnType<typeof setInterval>;
+  /**
+   * setTimeout handle for SIGTERM when all SSE controllers disconnect.
+   * Cleared by addController() if a new client reconnects before the delay fires.
+   */
   orphanTimer?: ReturnType<typeof setTimeout>;
 }
 
 /** Map of runId → ActiveRun for all in-progress workflow runs. */
 export const activeRuns = new Map<string, ActiveRun>();
 
-/** Map of sessionId → runId for idempotency check. */
+/**
+ * Secondary index: sessionId → runId.
+ * Kept in sync with activeRuns to support O(1) idempotency checks in startRun()
+ * and getRunIdForSession() without scanning all activeRuns.
+ */
 const sessionRunMap = new Map<string, string>();
 
 /**
@@ -181,10 +209,13 @@ export function startRun(
     }
   });
 
-  proc.stderr?.resume(); // drain stderr to prevent backpressure
+  // Drain stderr in the background to prevent the OS pipe buffer from filling
+  // and deadlocking stdout (Node.js pipes are bounded at ~64 KB).
+  proc.stderr?.resume();
 
   proc.on('close', () => {
-    // Process exited — clean up after a short delay to allow final events to flush
+    // Delay termination by 2 s to let in-flight stdout lines reach their readline
+    // handler before we remove the run from activeRuns and close controllers.
     setTimeout(() => terminateRun(runId), 2_000);
   });
 }

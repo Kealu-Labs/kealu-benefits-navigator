@@ -3,15 +3,37 @@
 // Licensed under the Kealu Vector License v1.0 — PATENT PENDING
 //
 
+/**
+ * Intake flow logic for the guided household information collection conversation.
+ *
+ * The intake is structured in two tiers:
+ *   - Tier 1: Minimum required fields (ZIP, income, household composition). Research
+ *             cannot start without these because FPL calculations and state/county
+ *             program lookups depend on all three.
+ *   - Tier 2: Improves plan matching quality (coverage, medications, providers, budget,
+ *             health needs). These are optional — users can skip via the skip button.
+ *
+ * Field extraction is done by regex against the user's free-text message; the approach
+ * mirrors the Python MCP server's `_INTAKE_FIELDS` / `_ZIP_RE` / `_INCOME_PATTERNS`
+ * implementation (mcp_server.py lines 42–57, 412–631).
+ */
+
 import type { HouseholdVars, ChatMessage } from '@/types/session';
 
+/** Partial HouseholdVars plus the extra `annual_income` runtime variable. */
 type RawVars = Partial<HouseholdVars> & { annual_income?: string };
 
+/** Definition of a single guided intake question. */
 export interface IntakeField {
+  /** Key into RawVars / HouseholdVars; used to check whether the field is already answered. */
   key: string;
+  /** Short human-readable label for this field. */
   label: string;
+  /** One-sentence explanation of why this information is needed. Shown below the prompt. */
   rationale: string;
+  /** Full text of the question to display to the user. */
   prompt: string;
+  /** Intake tier this field belongs to (1 = required, 2 = optional). */
   tier: 1 | 2 | 3;
 }
 
@@ -103,10 +125,11 @@ export function parseUserMessage(message: string, existing: RawVars): RawVars {
       const monthly = parseInt(monthlyMatch[1].replace(/,/g, ''), 10);
       result.annual_income = String(monthly * 12);
     } else {
-      // Annual: "$42k", "$42,000"
+      // Annual: "$42k" → 42000, "$42,000" → 42000
       const annualMatch = message.match(/\$\s*([\d,]+)\s*k?\b/i);
       if (annualMatch) {
         const raw = annualMatch[1].replace(/,/g, '');
+        // Multiply by 1000 when the matched text ends with 'k' (shorthand: "$42k" = 42000)
         const suffix = annualMatch[0].toLowerCase().endsWith('k') ? 1000 : 1;
         result.annual_income = String(parseInt(raw, 10) * suffix);
       }
@@ -155,6 +178,8 @@ export function getNextQuestion(
     if (!value || value.trim().length === 0) return field;
   }
 
+  // Tier 2 is only reached once all Tier 1 fields are present.
+  // currentTier is updated server-side by the intake route when tier 1 is complete.
   if (currentTier < 2) return null;
 
   // Tier 2
