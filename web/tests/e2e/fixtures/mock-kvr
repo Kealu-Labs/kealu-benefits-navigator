@@ -1,0 +1,485 @@
+#!/usr/bin/env node
+/**
+ * mock-kvr — deterministic KVR fixture for Playwright E2E tests.
+ *
+ * Placed on PATH by playwright.config.ts so `kvr` resolves to this script
+ * instead of the real binary. Emits pre-defined [PHASE_STREAM] events to
+ * stdout and writes fixture .md files to .workforce/{runId}/, exercising the
+ * full web-app SSE relay without real LLM calls.
+ *
+ * Usage (matches real kvr invocation in kvr-runner.ts):
+ *   kvr run benefits-navigator --mode automated --no-progress \
+ *       --run-id <uuid> --phase-stream stdout [--var key=value ...]
+ *
+ * Special modes (set via environment variables in tests):
+ *   MOCK_KVR_EXIT_CODE=1   → emits partial events then exits non-zero (error scenario)
+ *   MOCK_KVR_FEEDBACK_LOOP=1 → simulates phase rerun (evidence-verification reruns once)
+ *   MOCK_KVR_WIDE_TABLE=1  → includes 10-column table in insurance-research output
+ */
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+// ---------------------------------------------------------------------------
+// Parse CLI arguments
+// ---------------------------------------------------------------------------
+
+const args = process.argv.slice(2);
+
+if (args[0] === '--version') {
+  process.stdout.write('mock-kvr 0.225.0 (E2E fixture)\n');
+  process.exit(0);
+}
+
+// Find --run-id value
+const runIdIdx = args.indexOf('--run-id');
+const runId = runIdIdx !== -1 ? args[runIdIdx + 1] : `mock-run-${Date.now()}`;
+
+// ---------------------------------------------------------------------------
+// Determine .workforce directory (one level up from CWD = web/ → repo root)
+// ---------------------------------------------------------------------------
+
+const workforceBase = path.join(process.cwd(), '.workforce');
+const runDir = path.join(workforceBase, runId);
+fs.mkdirSync(runDir, { recursive: true });
+
+// ---------------------------------------------------------------------------
+// Emit a [PHASE_STREAM] event to stdout
+// ---------------------------------------------------------------------------
+
+function emitEvent(eventObj) {
+  process.stdout.write(`[PHASE_STREAM] ${JSON.stringify(eventObj)}\n`);
+}
+
+// ---------------------------------------------------------------------------
+// Write a fixture .md file for a phase
+// ---------------------------------------------------------------------------
+
+function writePhaseFile(phaseName, content) {
+  const filePath = path.join(runDir, `${phaseName}.md`);
+  fs.writeFileSync(filePath, content, 'utf8');
+}
+
+// ---------------------------------------------------------------------------
+// Fixture content for each phase
+// ---------------------------------------------------------------------------
+
+const BENEFITS_RESEARCH_MD = `## STATUS: COMPLETE
+## SUMMARY: 8 programs identified across 4 categories
+
+## Household Profile
+Single parent, 2 children ages 4 and 9, annual income $42,000, ZIP 77001, Harris County, Texas.
+
+## Federal Poverty Level Calculation
+- Household size: 3
+- Annual income: $42,000
+- 100% FPL for household of 3 (2025): $24,860
+- FPL percentage: 169%
+
+## Programs Found
+
+### Healthcare
+| Program | Agency | Eligibility Summary | Income Limit ($) | Est. Monthly Value | Source URL | Enrollment Window |
+|---------|--------|--------------------|-----------------|--------------------|------------|-------------------|
+| CHIP (Children's Medicaid) | HHSC | Children under 19, income ≤ 200% FPL | $49,720 | $300/child | https://www.yourtexasbenefits.com/ | Open year-round |
+| ACA Marketplace Silver | CMS | 100-400% FPL, APTC eligible | N/A | $180 subsidy | https://healthcare.gov/ | Open enrollment Nov-Jan |
+
+### Food Assistance
+| Program | Agency | Eligibility Summary | Income Limit ($) | Est. Monthly Value | Source URL | Enrollment Window |
+|---------|--------|--------------------|-----------------|--------------------|------------|-------------------|
+| SNAP | USDA/HHSC | Gross income ≤ 130% FPL | $32,318 | $500 | https://www.yourtexasbenefits.com/ | Open year-round |
+
+### Utilities & Energy
+| Program | Agency | Eligibility Summary | Income Limit ($) | Est. Monthly Value | Source URL | Enrollment Window |
+|---------|--------|--------------------|-----------------|--------------------|------------|-------------------|
+| LIHEAP | HHS/TDHCA | Income ≤ 150% FPL | $37,290 | $100 | https://www.tdhca.state.tx.us/liheap/ | Seasonal |
+
+### Childcare & Education
+| Program | Agency | Eligibility Summary | Income Limit ($) | Est. Monthly Value | Source URL | Enrollment Window |
+|---------|--------|--------------------|-----------------|--------------------|------------|-------------------|
+| CCDF Childcare Assistance | ACF/TWC | Income ≤ 85% SMI | $57,000 | $800 | https://www.childcare.texas.gov/ | Open year-round |
+
+## Total Estimated Value
+Total estimated annual value of all identified programs: $18,240/year
+
+## Income Cliff Warnings
+- SNAP: Within 23% of income limit — a raise to $45,000 would disqualify
+
+## Time-Sensitive Programs
+- LIHEAP: Cooling assistance opens June 1; apply before July 31
+`;
+
+const INSURANCE_RESEARCH_MD = process.env.MOCK_KVR_WIDE_TABLE
+  ? `## STATUS: COMPLETE
+## SUMMARY: 12 plans compared across 4 channels
+
+## Subsidy Eligibility
+FPL: 169% | APTC: ~$180/month | CSR eligible (Silver) | No Medicaid gap
+
+## ACA Marketplace Plans
+| Plan Name | Metal | Premium Before | Premium After | Deductible | OOP Max | Network | PCP | Spec | Urgent | ER | Generic Rx | Brand Rx | Formulary | Network Match | OON Policy | Waived? | Ground Amb | Air Amb |
+|-----------|-------|---------------|---------------|------------|---------|---------|-----|------|--------|----|------------|----------|-----------|---------------|------------|---------|------------|---------|
+| BlueCross Silver | Silver | $350 | $170 | $3,500 | $7,500 | PPO | $30 | $60 | $45 | $300 | $15 | $75 | ✓ | ✓ | 80% after deductible | Yes | Covered | $250 |
+| Ambetter Bronze | Bronze | $220 | $40 | $6,000 | $9,000 | HMO | $40 | $80 | $65 | $500 | $20 | $90 | ✓ | N/A | Not covered | No | Covered | Not covered |
+
+## Real-World Cost Scenarios
+
+### Scenario Winner Analysis
+BlueCross Silver wins for chronic condition scenario by $2,400/year due to lower deductible.
+
+## Short-Term / Gap Insurance
+| Plan | Premium | Duration | Deductible | Key Exclusions |
+|------|---------|----------|------------|----------------|
+| HealthMarkets STM | $180 | 364 days | $5,000 | Pre-existing, maternity, mental health |
+
+### Coverage Limitations Warning
+Short-term plans do NOT cover: pre-existing conditions, maternity care, mental health, preventive care, ACA essential health benefits.
+
+## Health Sharing Ministries
+| Organization | Monthly Share | Annual Unshared Amount | Key Limitations |
+|-------------|--------------|----------------------|-----------------|
+| Medi-Share | $200 | $3,000 | Christian lifestyle requirements, no pre-existing coverage for 36 months |
+
+### Not Insurance Disclaimer
+Health sharing ministries are NOT insurance. They are not regulated by state insurance departments and do not guarantee payment.
+
+## Employer Arrangements (ICHRA/QSEHRA)
+Not applicable — no employer coverage indicated.
+
+## Emergency Services Comparison
+| Plan | ER Copay | Ambulance | OON ER Policy | Waived if Admitted? |
+|------|----------|-----------|---------------|---------------------|
+| BlueCross Silver | $300 | Covered | 80% after deductible | Yes |
+
+## Formulary Match
+No medications specified.
+
+## Provider Network Match
+No providers specified.
+
+## Coverage Per Household Member
+| Member | Recommended Channel | Plan | Reason |
+|--------|--------------------|----|--------|
+| Parent | ACA Silver | BlueCross Silver | APTC eligible, lowest net cost |
+| Child 1 (age 4) | CHIP | Texas CHIP | $0 premium, full pediatric coverage |
+| Child 2 (age 9) | CHIP | Texas CHIP | $0 premium, full pediatric coverage |
+`
+  : `## STATUS: COMPLETE
+## SUMMARY: 6 plans compared across 3 channels
+
+## Subsidy Eligibility
+FPL: 169% | APTC: ~$180/month | CSR eligible (Silver) | No Medicaid gap
+
+## ACA Marketplace Plans
+| Plan Name | Metal Tier | Premium Before | Premium After | Deductible | OOP Max | Network Type |
+|-----------|-----------|---------------|---------------|------------|---------|-------------|
+| BlueCross Silver | Silver | $350 | $170 | $3,500 | $7,500 | PPO |
+| Ambetter Bronze | Bronze | $220 | $40 | $6,000 | $9,000 | HMO |
+
+## Real-World Cost Scenarios
+
+### Scenario Winner Analysis
+BlueCross Silver wins for chronic condition scenario by $2,400/year.
+
+## Short-Term / Gap Insurance
+| Plan | Premium | Duration | Deductible | Key Exclusions |
+|------|---------|----------|------------|----------------|
+| HealthMarkets STM | $180 | 364 days | $5,000 | Pre-existing, maternity |
+
+### Coverage Limitations Warning
+Short-term plans do NOT cover pre-existing conditions, maternity, mental health, or ACA EHBs.
+
+## Health Sharing Ministries
+| Organization | Monthly Share | Annual Unshared Amount | Key Limitations |
+|-------------|--------------|----------------------|-----------------|
+| Medi-Share | $200 | $3,000 | Christian lifestyle, no pre-existing |
+
+### Not Insurance Disclaimer
+Health sharing ministries are NOT insurance.
+
+## Employer Arrangements (ICHRA/QSEHRA)
+Not applicable.
+
+## Emergency Services Comparison
+| Plan | ER Copay | Ambulance | Out-of-Network ER Policy | Waived if Admitted? |
+|------|----------|-----------|--------------------------|---------------------|
+| BlueCross Silver | $300 | Covered | 80% after deductible | Yes |
+
+## Formulary Match
+No medications specified.
+
+## Provider Network Match
+No providers specified.
+
+## Coverage Per Household Member
+| Member | Recommended Channel | Plan | Reason |
+|--------|--------------------|----|--------|
+| Parent | ACA Silver | BlueCross Silver | APTC eligible |
+| Child 1 | CHIP | Texas CHIP | $0 premium |
+| Child 2 | CHIP | Texas CHIP | $0 premium |
+`;
+
+const EVIDENCE_VERIFICATION_MD = `## STATUS: COMPLETE
+## SUMMARY: 8 checks performed: 8 verified, 0 corrected, 0 critical errors
+
+## FPL Verification
+### Independent Calculation
+Household size: 3 | Income: $42,000 | 100% FPL (2025, 48-state): $24,860
+FPL% = ($42,000 ÷ $24,860) × 100 = 168.9% ≈ 169%
+
+### Cross-Phase Comparison
+| Phase | Reported FPL % | Correct FPL % | Status |
+|-------|---------------|---------------|--------|
+| Benefits Research | 169% | 169% | VERIFIED |
+| Insurance Research | 169% | 169% | VERIFIED |
+
+## Medicaid Expansion Status
+Texas | Non-expansion | Both phases used non-expansion | VERIFIED
+
+## Internal Consistency Check
+| Data Point | Benefits Research | Insurance Research | Correct Value | Status |
+|-----------|------------------|--------------------|---------------|--------|
+| Household size | 3 | 3 | 3 | VERIFIED |
+| Annual income | $42,000 | $42,000 | $42,000 | VERIFIED |
+| FPL % | 169% | 169% | 169% | VERIFIED |
+
+## Income Threshold Verification
+| Program | Cited Threshold | Recalculated | FPL % | Status |
+|---------|----------------|--------------|-------|--------|
+| CHIP | $49,720 | $49,720 | 200% | VERIFIED |
+| SNAP | $32,318 | $32,318 | 130% | VERIFIED |
+
+## Program Existence Verification
+| Program | State | Exists? | Source | Status |
+|---------|-------|---------|--------|--------|
+| CHIP | Texas | Yes | yourtexasbenefits.com | VERIFIED |
+| SNAP | Texas | Yes | yourtexasbenefits.com | VERIFIED |
+
+## Dollar Value Plausibility
+| Program | Estimated Value | Known Range | Status |
+|---------|----------------|-------------|--------|
+| SNAP | $500/month | $400-740/month | VERIFIED |
+| CHIP | $300/child/month | $200-400/month | VERIFIED |
+
+## Source Citation Audit
+| Claim | Source | Source Type | Status |
+|-------|--------|-------------|--------|
+| CHIP eligibility | yourtexasbenefits.com | Official gov | VERIFIED |
+
+## Verification Summary
+Total checks: 8 | Verified: 8 | Corrected: 0 | Critical Errors: 0
+
+## ALL CHECKS PASSED
+`;
+
+const ELIGIBILITY_VALIDATION_MD = `## STATUS: COMPLETE
+## SUMMARY: 4 eligible, 1 ineligible, 0 marginal
+
+## Verified Data Used
+FPL: 169% | Texas: non-expansion Medicaid | No corrections from verifier.
+
+## Eligibility Matrix
+| Program/Plan | Determination | Key Criterion | Confidence | Notes |
+|-------------|---------------|---------------|------------|-------|
+| CHIP (children) | ELIGIBLE | Income ≤ 200% FPL ✓, children under 19 ✓ | High | Both children qualify |
+| SNAP | ELIGIBLE | Gross income ≤ 130% FPL ✓ ($42k < $32,318? No — INELIGIBLE) | High | Income exceeds limit |
+| ACA Silver + APTC | ELIGIBLE | 100-400% FPL ✓, not Medicaid eligible ✓ | High | ~$180/month subsidy |
+| LIHEAP | ELIGIBLE | Income ≤ 150% FPL? No — 169% > 150% | Medium | May qualify for lower tier |
+| CCDF Childcare | ELIGIBLE | Working parent, income ≤ 85% SMI ✓ | High | Must verify employment hours |
+
+## Ineligible Programs — Reasons
+| Program | Failing Criterion | Threshold | User's Value | Source |
+|---------|-----------------|-----------|-------------|--------|
+| Adult Medicaid | Non-expansion state | N/A — Texas did not expand | 169% FPL | Texas HHSC |
+
+## Marginal Programs — Information Needed
+None identified.
+
+## Coverage Overlap Analysis
+Children: CHIP covers pediatric healthcare; ACA children's plans are less cost-effective.
+
+## Coverage Gap Analysis
+- Adult dental: Not covered by ACA marketplace for adults
+- Adult vision: Not covered at ACA marketplace plans
+### Gap Recommendations
+- Dental: Standalone dental plan ~$30/month
+- Vision: VSP individual plan ~$15/month
+
+## Income Cliff Analysis
+| Program | Current Income | Disqualification Threshold | Buffer | Annual Benefit Value at Risk |
+|---------|---------------|--------------------------|--------|------------------------------|
+| CHIP | $42,000 | $49,720 (200% FPL) | $7,720 | $7,200 |
+| ACA APTC | $42,000 | $99,440 (400% FPL) | $57,440 | $2,160 |
+
+## Program Interaction Effects
+CHIP enrollment does not affect ACA APTC eligibility. Apply for CHIP first; it is faster to process.
+`;
+
+const ACTION_PLAN_MD = `## STATUS: COMPLETE
+## SUMMARY: 4 enrollment actions, total estimated value $18,240/year
+
+## Bottom Line
+Your household qualifies for an estimated $18,240/year in benefits and savings. The most important finding: your two children are eligible for Texas CHIP at $0 premium, saving you $600/month. Apply for CHIP at yourtexasbenefits.com this week — it takes 45 days to process.
+
+## Coverage Map
+### Per-Member Coverage
+| Household Member | Healthcare | Dental | Vision | Food | Housing | Other |
+|-----------------|------------|--------|--------|------|---------|-------|
+| Parent | ACA Silver (BlueCross) | Gap | Gap | N/A | N/A | LIHEAP |
+| Child 1 (age 4) | Texas CHIP | CHIP dental | CHIP vision | N/A | N/A | CCDF |
+| Child 2 (age 9) | Texas CHIP | CHIP dental | CHIP vision | N/A | N/A | N/A |
+
+### Remaining Gaps
+- Adult dental: Standalone plan ~$30/month
+- Adult vision: VSP plan ~$15/month
+
+## Prioritized Action Plan
+
+### Immediate Actions (This Week)
+1. Apply for CHIP for both children at https://www.yourtexasbenefits.com/ — bring birth certificates, proof of income, and Texas residency. Processing: 45 days. Deadline: open enrollment.
+2. Enroll in ACA Silver plan at https://healthcare.gov/ — deadline January 15 for February 1 coverage. APTC of ~$180/month applied automatically.
+
+### Short-Term Actions (This Month)
+3. Apply for LIHEAP cooling assistance at https://www.tdhca.state.tx.us/liheap/ before July 31. Bring utility bill and proof of income.
+
+### Upcoming Actions (Next 1-3 Months)
+4. Apply for CCDF childcare assistance at https://www.childcare.texas.gov/ for child age 4. Processing: 30-60 days.
+
+### Monitor & Renew
+- CHIP annual renewal: set calendar reminder for 11 months from approval date
+- ACA: re-shop each November during open enrollment
+
+## Document Checklist
+| Document | Needed For | Specific Details | How to Obtain |
+|----------|-----------|-----------------|---------------|
+| Birth certificates | CHIP | Both children | County clerk or vital records |
+| Last 30 days pay stubs | CHIP, CCDF | All income sources | From employer |
+| Texas ID or DL | All programs | Current address | DMV |
+| Proof of residency | All programs | Utility bill or lease | Current utility provider |
+
+## Application Directory
+| Program | Apply Online URL | Phone | Nearest Office |
+|---------|----------------|-------|----------------|
+| CHIP | https://www.yourtexasbenefits.com/ | 211 | Harris County HHSC |
+| ACA Marketplace | https://healthcare.gov/ | 1-800-318-2596 | Local navigator |
+| LIHEAP | https://www.tdhca.state.tx.us/liheap/ | 512-475-3800 | Community Action Agency |
+
+## Income Cliff Warnings
+- CHIP cliff: If household income rises above $49,720/year, children lose CHIP (worth $7,200/year). Seek income increases in steps or time them after annual renewal.
+- ACA APTC cliff: Income above $99,440 eliminates $2,160/year in subsidies.
+
+## Contingency Plans
+- If CHIP denied: immediately enroll children in ACA marketplace children's plan ($0 premium for children under 200% FPL in most states)
+- If income rises: switch from CHIP to ACA marketplace before losing eligibility
+
+## Estimated Value Summary
+| Program | Monthly Value | Annual Value |
+|---------|--------------|--------------|
+| Texas CHIP (2 children) | $600 | $7,200 |
+| ACA APTC Subsidy | $180 | $2,160 |
+| LIHEAP (estimated) | $75 | $900 |
+| CCDF Childcare | $700 | $8,400 |
+| **TOTAL ESTIMATED ANNUAL VALUE** | **$1,555** | **$18,660** |
+
+You are currently paying full premiums. By completing this action plan, you could add $18,660/year in benefits.
+`;
+
+// ---------------------------------------------------------------------------
+// Emit workflow events with realistic delays
+// ---------------------------------------------------------------------------
+
+const PHASE_NAMES = [
+  'benefits-research',
+  'insurance-research',
+  'evidence-verification',
+  'eligibility-validation',
+  'action-plan',
+];
+
+const PHASE_FILES = {
+  'benefits-research': BENEFITS_RESEARCH_MD,
+  'insurance-research': INSURANCE_RESEARCH_MD,
+  'evidence-verification': EVIDENCE_VERIFICATION_MD,
+  'eligibility-validation': ELIGIBILITY_VALIDATION_MD,
+  'action-plan': ACTION_PLAN_MD,
+};
+
+// Simulate error scenario
+const exitCode = parseInt(process.env.MOCK_KVR_EXIT_CODE || '0', 10);
+const feedbackLoop = process.env.MOCK_KVR_FEEDBACK_LOOP === '1';
+
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function run() {
+  // workflow_start
+  emitEvent({ event_type: 'workflow_start', total_phases: 5 });
+  await sleep(50);
+
+  // Phases 1 & 2 start in parallel
+  emitEvent({ event_type: 'phase_start', phase: 'benefits-research' });
+  emitEvent({ event_type: 'phase_start', phase: 'insurance-research' });
+  await sleep(100);
+
+  if (exitCode !== 0) {
+    // Emit an error and exit
+    emitEvent({
+      event_type: 'error',
+      phase: 'benefits-research',
+      message: 'Workflow failed: mock exit code ' + exitCode,
+    });
+    process.exit(exitCode);
+  }
+
+  // Complete phases 1 & 2
+  writePhaseFile('benefits-research', PHASE_FILES['benefits-research']);
+  emitEvent({ event_type: 'phase_complete', phase: 'benefits-research' });
+  await sleep(50);
+
+  writePhaseFile('insurance-research', PHASE_FILES['insurance-research']);
+  emitEvent({ event_type: 'phase_complete', phase: 'insurance-research' });
+  await sleep(50);
+
+  // Phase 3: evidence-verification
+  emitEvent({ event_type: 'phase_start', phase: 'evidence-verification' });
+  await sleep(100);
+
+  if (feedbackLoop) {
+    // Simulate feedback loop: phase reruns once
+    emitEvent({ event_type: 'phase_start', phase: 'benefits-research' });
+    await sleep(50);
+    writePhaseFile('benefits-research', PHASE_FILES['benefits-research']);
+    emitEvent({ event_type: 'phase_complete', phase: 'benefits-research' });
+    await sleep(50);
+    emitEvent({ event_type: 'phase_start', phase: 'evidence-verification' });
+    await sleep(50);
+  }
+
+  writePhaseFile('evidence-verification', PHASE_FILES['evidence-verification']);
+  emitEvent({ event_type: 'phase_complete', phase: 'evidence-verification' });
+  await sleep(50);
+
+  // Phase 4: eligibility-validation
+  emitEvent({ event_type: 'phase_start', phase: 'eligibility-validation' });
+  await sleep(100);
+  writePhaseFile('eligibility-validation', PHASE_FILES['eligibility-validation']);
+  emitEvent({ event_type: 'phase_complete', phase: 'eligibility-validation' });
+  await sleep(50);
+
+  // Phase 5: action-plan
+  emitEvent({ event_type: 'phase_start', phase: 'action-plan' });
+  await sleep(100);
+  writePhaseFile('action-plan', PHASE_FILES['action-plan']);
+  emitEvent({ event_type: 'phase_complete', phase: 'action-plan' });
+  await sleep(50);
+
+  process.exit(0);
+}
+
+run().catch((err) => {
+  process.stderr.write(`mock-kvr error: ${err.message}\n`);
+  process.exit(1);
+});
