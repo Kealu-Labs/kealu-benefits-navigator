@@ -22,7 +22,7 @@ interface ChatInterfaceProps {
 }
 
 const WELCOME =
-  "Hello! I am an AI Agent powered by Kealu Vector to help you find health insurance and benefit programs for your household.\n\n I'll ask a few questions to understand your situation — no account info needed, and your information stays private.\n\nLet's start with some basics. What is your zip code?";
+  "Hello! I am an AI Agent powered by Kealu Vector to help you find health insurance and benefit programs for your household.\n\n I'll ask a few questions to understand your situation--no account info needed, and your information always stays private.\n\nLet's start with some basics. What is your zip code?";
 
 const WELCOME_BACK =
   'Welcome back! Picking up where we left off.';
