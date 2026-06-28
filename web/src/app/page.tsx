@@ -63,8 +63,8 @@ export default async function Home() {
   return (
     <main className="flex flex-col items-center min-h-screen py-8 px-4">
       <header className="w-full max-w-2xl mb-6">
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Benefits Navigator</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Benefits Navigator</h1>
+        <p className="text-slate-400 text-sm mt-1">
           Find health coverage and benefit programs for your household — no account required.
         </p>
       </header>
