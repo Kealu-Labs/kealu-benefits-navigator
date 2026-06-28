@@ -13,11 +13,7 @@ import { readdir, stat, rm } from 'fs/promises';
 import path from 'path';
 import { logStartupChecks } from '@/lib/kvr-checker';
 import { getWorkforceBase } from '@/lib/report-assembler';
-
-// Local copy of UUID_V4_REGEX to avoid a circular import with instrumentation.ts.
-// Must stay in sync with the exported const in instrumentation.ts.
-const UUID_V4_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { UUID_V4_REGEX } from './instrumentation';
 
 const ORPHAN_THRESHOLD_MS = 30 * 60 * 1000;
 

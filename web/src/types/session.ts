@@ -130,6 +130,13 @@ export interface Session {
   /** True when the user clicked "Skip remaining questions" or sent "skip". */
   skipIntake: boolean;
   /**
+   * Key of the intake field most recently asked and still awaiting an answer.
+   * The next free-text message is stored under this key for fields that are not
+   * regex-extracted (i.e. the Tier 2 questions). Undefined before the first
+   * server-issued question.
+   */
+  pendingField?: string;
+  /**
    * Accumulated intake variables. Uses `Partial` because collection is
    * incremental; `annual_income` is added as an extra key not in HouseholdVars.
    */

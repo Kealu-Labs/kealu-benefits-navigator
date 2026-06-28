@@ -102,6 +102,51 @@ export const TIER_2_FIELDS: IntakeField[] = [
   },
 ];
 
+/** All intake fields in display order (Tier 1 followed by Tier 2). */
+export const ALL_FIELDS: IntakeField[] = [...TIER_1_FIELDS, ...TIER_2_FIELDS];
+
+/** Total number of intake steps shown in the progress indicator. */
+export const TOTAL_STEPS = ALL_FIELDS.length;
+
+/**
+ * Field keys whose values are extracted/normalized from free text by
+ * parseUserMessage (ZIP validation, income annualization). All other fields
+ * store the user's raw answer verbatim, keyed by the question being asked.
+ */
+export const PARSED_KEYS = new Set<string>(['zip_code', 'annual_income', 'household_profile']);
+
+/** 1-based step number for a field key, or null if the key is not an intake field. */
+export function getFieldStep(key: string): number | null {
+  const idx = ALL_FIELDS.findIndex((f) => f.key === key);
+  return idx === -1 ? null : idx + 1;
+}
+
+/** A single answered intake field, safe to show back to the owning session for review/edit. */
+export interface IntakeAnswer {
+  key: string;
+  label: string;
+  value: string;
+  tier: 1 | 2 | 3;
+}
+
+/**
+ * Build the ordered list of answered fields (non-empty values).
+ *
+ * This is the only place collected vars are surfaced for display, and it is
+ * returned exclusively to the owning session (see GET /api/intake) so the user
+ * can review and correct what they typed — never to a third party.
+ */
+export function buildAnswers(vars: RawVars): IntakeAnswer[] {
+  const out: IntakeAnswer[] = [];
+  for (const f of ALL_FIELDS) {
+    const value = (vars as Record<string, string | undefined>)[f.key];
+    if (value && value.trim().length > 0) {
+      out.push({ key: f.key, label: f.label, value, tier: f.tier });
+    }
+  }
+  return out;
+}
+
 /**
  * Extract structured vars from a free-text user message.
  * Does not overwrite existing vars that are already set.
