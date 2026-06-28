@@ -158,35 +158,13 @@ export default function ChatInterface({
 
       if (data.type === 'ready') {
         setCurrentField(null);
+        await refreshAnswers();
         // All required fields collected — show confirmation then kick off the run.
         setMessages((prev) => [
           ...prev,
           { id: uid(), role: 'assistant', content: READY_MSG },
         ]);
-
-        // POST /api/workflow/start is idempotent: if a run is already in progress
-        // for this session, the server returns the existing runId without re-spawning.
-        const startRes = await fetch('/api/workflow/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({}),
-        });
-        const startData = (await startRes.json()) as { runId?: string; error?: string };
-
-        if (startData.runId) {
-          onReady(startData.runId);
-          return;
-        }
-        // Non-503 error (e.g., session expired between intake and start)
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: uid(),
-            role: 'assistant',
-            content: `⚠ Unable to start analysis: ${startData.error ?? 'please try again.'}`,
-          },
-        ]);
+        if (await startAnalysis()) return;
       } else if (data.type === 'question' && data.field) {
         setCurrentField(data.field);
         const text = data.field.rationale
@@ -217,6 +195,55 @@ export default function ChatInterface({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void sendMessage(input);
+    }
+  }
+
+  /**
+   * Kick off the benefits analysis. Shared by the auto-start on `ready` and the
+   * explicit "Run Analysis" button (shown once all info is collected, e.g. after
+   * editing answers or stopping a run). Returns true when a run started.
+   *
+   * POST /api/workflow/start is idempotent: if a run is already in progress for
+   * this session the server returns the existing runId without re-spawning.
+   */
+  async function startAnalysis(): Promise<boolean> {
+    const startRes = await fetch('/api/workflow/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
+    const startData = (await startRes.json()) as { runId?: string; error?: string };
+
+    if (startData.runId) {
+      onReady(startData.runId);
+      return true;
+    }
+    // Non-503 error (e.g., session expired between intake and start)
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: uid(),
+        role: 'assistant',
+        content: `⚠ Unable to start analysis: ${startData.error ?? 'please try again.'}`,
+      },
+    ]);
+    return false;
+  }
+
+  /** "Run Analysis" button handler — start a run with the info collected so far. */
+  async function handleRunAnalysis() {
+    if (isPending) return;
+    setIsPending(true);
+    try {
+      await startAnalysis();
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { id: uid(), role: 'assistant', content: '⚠ Something went wrong. Please try again.' },
+      ]);
+    } finally {
+      setIsPending(false);
     }
   }
 
@@ -378,6 +405,21 @@ export default function ChatInterface({
             className="text-xs text-slate-400 underline hover:text-slate-600 focus:outline-none"
           >
             Skip remaining questions
+          </button>
+        </div>
+      )}
+
+      {/* Run Analysis — shown once all info is collected (e.g. after editing
+          answers or stopping a run), so re-running is an explicit action. */}
+      {currentField === null && answers.length > 0 && (
+        <div className="px-4 pb-2">
+          <button
+            type="button"
+            onClick={() => void handleRunAnalysis()}
+            disabled={isPending}
+            className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-slate-900 transition-colors"
+          >
+            {isPending ? 'Starting…' : 'Run Analysis'}
           </button>
         </div>
       )}

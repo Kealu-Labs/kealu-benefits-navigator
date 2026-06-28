@@ -9,12 +9,11 @@ import { useState } from 'react';
 import ChatInterface from './chat-interface';
 import PhaseTracker from './phase-tracker';
 import ReportView from './report-view';
-import EditInfoForm from './edit-info-form';
 import type { ChatMessage } from '@/types/session';
 import type { IntakeField } from '@/lib/intake-flow';
 import type { ReportPayload } from '@/lib/report-assembler';
 
-type View = 'intake' | 'progress' | 'edit' | 'report';
+type View = 'intake' | 'progress' | 'report';
 
 interface AppShellProps {
   initialView: View;
@@ -72,21 +71,14 @@ export default function AppShell({
   }
 
   /**
-   * Called by PhaseTracker when the user stops a run or chooses to edit after an
-   * error. Switches to the structured edit form.
+   * Called by PhaseTracker when the user stops a run ("Stop & edit") or chooses to
+   * edit after an error. Returns to the chat intake view, where the inline answers
+   * panel lets the user review/correct their information and re-run — the single
+   * edit surface used throughout the app. The stop route has already detached the
+   * run from the session, so the next "Run Analysis" spawns a fresh run.
    */
   function handleEdit() {
-    setView('edit');
-  }
-
-  /** Called by EditInfoForm after saving — a fresh run has started. */
-  function handleEditSaved(newRunId: string) {
-    setRunId(newRunId);
-    setView('progress');
-  }
-
-  /** Called by EditInfoForm "Cancel" — return to the chat intake view. */
-  function handleEditCancel() {
+    setRunId(undefined);
     setView('intake');
   }
 
@@ -108,10 +100,6 @@ export default function AppShell({
           onRestart={handleRestart}
           onEdit={handleEdit}
         />
-      )}
-
-      {view === 'edit' && (
-        <EditInfoForm onSaved={handleEditSaved} onCancel={handleEditCancel} />
       )}
 
       {view === 'report' && report && (
