@@ -9,10 +9,20 @@ interface ErrorBannerProps {
   message: string;
   correlationId?: string;
   onRetry: () => void;
+  /** Optional secondary action (e.g. "Edit my information"). */
+  onSecondary?: () => void;
+  /** Label for the secondary action button. Defaults to "Edit my information". */
+  secondaryLabel?: string;
 }
 
-/** Inline amber error banner with optional correlation ID and retry button. */
-export default function ErrorBanner({ message, correlationId, onRetry }: ErrorBannerProps) {
+/** Inline amber error banner with optional correlation ID, retry, and secondary action. */
+export default function ErrorBanner({
+  message,
+  correlationId,
+  onRetry,
+  onSecondary,
+  secondaryLabel = 'Edit my information',
+}: ErrorBannerProps) {
   return (
     <div
       role="alert"
@@ -29,7 +39,7 @@ export default function ErrorBanner({ message, correlationId, onRetry }: ErrorBa
           )}
         </div>
       </div>
-      <div className="mt-3 flex">
+      <div className="mt-3 flex gap-2">
         <button
           type="button"
           onClick={onRetry}
@@ -37,6 +47,15 @@ export default function ErrorBanner({ message, correlationId, onRetry }: ErrorBa
         >
           Try Again
         </button>
+        {onSecondary && (
+          <button
+            type="button"
+            onClick={onSecondary}
+            className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 transition-colors"
+          >
+            {secondaryLabel}
+          </button>
+        )}
       </div>
     </div>
   );

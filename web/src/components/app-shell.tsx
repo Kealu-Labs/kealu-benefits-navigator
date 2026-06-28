@@ -9,11 +9,12 @@ import { useState } from 'react';
 import ChatInterface from './chat-interface';
 import PhaseTracker from './phase-tracker';
 import ReportView from './report-view';
+import EditInfoForm from './edit-info-form';
 import type { ChatMessage } from '@/types/session';
 import type { IntakeField } from '@/lib/intake-flow';
 import type { ReportPayload } from '@/lib/report-assembler';
 
-type View = 'intake' | 'progress' | 'report';
+type View = 'intake' | 'progress' | 'edit' | 'report';
 
 interface AppShellProps {
   initialView: View;
@@ -62,11 +63,30 @@ export default function AppShell({
   }
 
   /**
-   * Called by PhaseTracker when the workflow errors out.
-   * Drops back to intake so the user sees the chat UI (session vars are preserved
-   * server-side, so the next "Run Analysis" will not re-ask intake questions).
+   * Called by PhaseTracker "Try Again" — a new run has been started with the same
+   * data. Swap in the new runId; the keyed PhaseTracker remounts and reconnects.
    */
-  function handleProgressError() {
+  function handleRestart(newRunId: string) {
+    setRunId(newRunId);
+    setView('progress');
+  }
+
+  /**
+   * Called by PhaseTracker when the user stops a run or chooses to edit after an
+   * error. Switches to the structured edit form.
+   */
+  function handleEdit() {
+    setView('edit');
+  }
+
+  /** Called by EditInfoForm after saving — a fresh run has started. */
+  function handleEditSaved(newRunId: string) {
+    setRunId(newRunId);
+    setView('progress');
+  }
+
+  /** Called by EditInfoForm "Cancel" — return to the chat intake view. */
+  function handleEditCancel() {
     setView('intake');
   }
 
@@ -82,10 +102,16 @@ export default function AppShell({
 
       {view === 'progress' && runId && (
         <PhaseTracker
+          key={runId}
           runId={runId}
           onComplete={handleRunComplete}
-          onError={handleProgressError}
+          onRestart={handleRestart}
+          onEdit={handleEdit}
         />
+      )}
+
+      {view === 'edit' && (
+        <EditInfoForm onSaved={handleEditSaved} onCancel={handleEditCancel} />
       )}
 
       {view === 'report' && report && (

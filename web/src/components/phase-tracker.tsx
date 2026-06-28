@@ -47,7 +47,10 @@ function phaseColorClass(status: PhaseStatus): string {
 interface PhaseTrackerProps {
   runId: string;
   onComplete: (payload: ReportPayload) => void;
-  onError?: () => void;
+  /** Re-run the same data after an error. Called with the new runId. */
+  onRestart: (runId: string) => void;
+  /** Stop the run (or recover from an error) and switch to the edit-info view. */
+  onEdit: () => void;
 }
 
 /**
@@ -59,12 +62,13 @@ interface PhaseTrackerProps {
  * - EventSource reconnects automatically on network drop using Last-Event-ID.
  * - On action-plan complete, fetches /api/workflow/{runId}/report and calls onComplete.
  */
-export default function PhaseTracker({ runId, onComplete, onError }: PhaseTrackerProps) {
+export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: PhaseTrackerProps) {
   const initialStatus = () =>
     Object.fromEntries(PHASES.map((p) => [p.key, 'idle'])) as Record<PhaseKey, PhaseStatus>;
 
   const [phaseStatus, setPhaseStatus] = useState<Record<PhaseKey, PhaseStatus>>(initialStatus);
   const [error, setError] = useState<{ message: string } | null>(null);
+  const [stopping, setStopping] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const fetchingReport = useRef(false);
 
@@ -157,11 +161,35 @@ export default function PhaseTracker({ runId, onComplete, onError }: PhaseTracke
         return;
       }
 
-      // Return to intake so AppShell can initiate a fresh PhaseTracker with new runId
-      onError?.();
+      // Re-run the same data: AppShell swaps in the new runId and remounts this
+      // tracker (keyed on runId) so a fresh EventSource connects.
+      onRestart(data.runId);
     } catch {
       setError({ message: 'Unable to start a new run. Please refresh the page.' });
     }
+  }
+
+  /** Stop the in-progress run, then hand off to the edit-info view. */
+  async function handleStop() {
+    if (stopping) return;
+    if (!window.confirm('Stop the analysis? You can review and edit your information before re-running.')) {
+      return;
+    }
+    setStopping(true);
+
+    // Close the SSE connection immediately so no late events arrive.
+    esRef.current?.close();
+
+    try {
+      await fetch(`/api/workflow/${runId}/stop`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Best-effort — the server also terminates orphaned runs on disconnect.
+    }
+
+    onEdit();
   }
 
   // Phases 1+2 (benefits-research, insurance-research) run in parallel in the workflow;
@@ -172,11 +200,23 @@ export default function PhaseTracker({ runId, onComplete, onError }: PhaseTracke
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-800">Analyzing your household…</h2>
-        <p className="text-sm text-slate-500 mt-0.5">
-          A 5-phase AI workflow is running. This typically takes 5–15 minutes.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Analyzing your household…</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            A 5-phase AI workflow is running. This typically takes 5–15 minutes.
+          </p>
+        </div>
+        {!error && (
+          <button
+            type="button"
+            onClick={() => void handleStop()}
+            disabled={stopping}
+            className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-slate-300 transition-colors"
+          >
+            {stopping ? 'Stopping…' : 'Stop & edit'}
+          </button>
+        )}
       </div>
 
       {/* Parallel phases (1+2) */}
@@ -198,6 +238,8 @@ export default function PhaseTracker({ runId, onComplete, onError }: PhaseTracke
           message={error.message}
           correlationId={runId}
           onRetry={() => void handleRetry()}
+          onSecondary={onEdit}
+          secondaryLabel="Edit my information"
         />
       )}
     </div>
