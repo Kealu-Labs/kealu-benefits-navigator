@@ -73,7 +73,14 @@ export class SessionStore {
 }
 
 /** Singleton session store for the Next.js process. */
-export const sessionStore = new SessionStore();
+const globalForSessionStore = globalThis as unknown as {
+  sessionStore?: SessionStore;
+};
+
+export const sessionStore =
+  globalForSessionStore.sessionStore ?? new SessionStore();
+
+globalForSessionStore.sessionStore = sessionStore;
 
 // Periodic eviction — runs every 15 minutes. Guard for edge runtime where setInterval may not exist.
 if (typeof setInterval !== 'undefined') {

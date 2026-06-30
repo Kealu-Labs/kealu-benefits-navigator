@@ -29,11 +29,11 @@ export async function POST(req: Request): Promise<Response> {
   const rawCookie = req.headers.get('cookie') ?? '';
   const sessionCookieMatch = rawCookie.match(/(?:^|;\s*)session=([^;]+)/);
   const cookieValue = sessionCookieMatch?.[1] ?? cookieStore.get(COOKIE_NAME)?.value;
-  const session = cookieValue ? sessionStore.get(cookieValue) : null;
+  const sessionId = cookieValue ?? randomUUID();
   // Fallback chain: prefer session.sessionId (populated), then raw cookie value (expired
   // session, valid cookie), then 'anonymous' (no cookie at all). The 'anonymous' fallback
   // allows the run to start but means session state will not be updated after spawn.
-  const sessionId = session?.sessionId ?? cookieValue ?? 'anonymous';
+  const session = sessionStore.get(sessionId) ?? sessionStore.create(sessionId);
 
   // Check for existing run (idempotency)
   const existingRunId = getRunIdForSession(sessionId);
@@ -77,9 +77,16 @@ export async function POST(req: Request): Promise<Response> {
   startRun(runId, sessionId, session?.vars ?? {});
 
   // Update session with runId
-  if (session) {
-    sessionStore.update(sessionId, { runId, runStatus: 'running' });
-  }
+  sessionStore.update(sessionId, { runId, runStatus: 'running' });
 
-  return NextResponse.json({ runId });
+  const response = NextResponse.json({ runId });
+
+response.cookies.set(COOKIE_NAME, sessionId, {
+  httpOnly: true,
+  sameSite: 'lax',
+  path: '/',
+  maxAge: 60 * 60 * 2,
+});
+
+return response;
 }
