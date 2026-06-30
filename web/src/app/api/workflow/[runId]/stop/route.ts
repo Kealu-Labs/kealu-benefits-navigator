@@ -23,10 +23,14 @@ import { NextResponse } from 'next/server';
  * - 403 — session does not own this runId
  */
 export async function POST(
+
   req: Request,
-  { params }: { params: { runId: string } },
+
+  { params }: { params: Promise<{ runId: string }> },
+
 ): Promise<Response> {
-  const { runId } = params;
+
+  const { runId } = await params;
 
   // Dynamic imports: defer module resolution to handler invocation time
   const { sessionStore } = await import('@/lib/session-store');

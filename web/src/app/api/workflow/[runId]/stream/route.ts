@@ -25,10 +25,14 @@ const KEEPALIVE_INTERVAL_MS = 15_000;
  * when mock factories reference consts declared after hoisted imports).
  */
 export async function GET(
+
   req: Request,
-  { params }: { params: { runId: string } },
+
+  { params }: { params: Promise<{ runId: string }> },
+
 ): Promise<Response> {
-  const { runId } = params;
+  const { runId } = await params;
+
   const cookieStore = await cookies();
 
   // Dynamic import: defers session-store resolution to handler invocation time
