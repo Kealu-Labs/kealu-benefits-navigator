@@ -34,7 +34,7 @@ export interface IntakeField {
   /** Full text of the question to display to the user. */
   prompt: string;
   /** Intake tier this field belongs to (1 = required, 2 = optional). */
-  tier: 1 | 2 | 3;
+  tier: 1 | 2;
 }
 
 /** Tier 1 fields — minimum required to start research. */
@@ -105,7 +105,7 @@ export const TIER_2_FIELDS: IntakeField[] = [
 /** All intake fields in display order (Tier 1 followed by Tier 2). */
 export const ALL_FIELDS: IntakeField[] = [...TIER_1_FIELDS, ...TIER_2_FIELDS];
 
-/** Total number of intake steps shown in the progress indicator. */
+/** Total number of intake steps shown in the progress indicator. Covers Tiers 1–2 only. */
 export const TOTAL_STEPS = ALL_FIELDS.length;
 
 /**
@@ -114,10 +114,12 @@ export const TOTAL_STEPS = ALL_FIELDS.length;
  * including household_profile, which is free-text (e.g. "just me, 20") — store
  * the user's raw answer verbatim, keyed by the question being asked.
  *
- * household_profile is intentionally NOT listed: parseUserMessage only captures
- * it opportunistically when a family keyword is present, so for the dedicated
- * household question the raw-answer fallback in the intake route must accept any
- * answer (otherwise single-person households like "just me" loop forever).
+ * household_profile is intentionally NOT listed here: parseUserMessage only
+ * captures it opportunistically when a family keyword is present. For the
+ * dedicated household question, the raw-answer fallback in the intake route
+ * must accept any answer — otherwise single-person households like "just me"
+ * loop forever because they don't trigger the family keyword set below.
+ * Opportunistic extraction is separate from this mandatory set.
  */
 export const PARSED_KEYS = new Set<string>(['zip_code', 'annual_income']);
 
@@ -132,7 +134,7 @@ export interface IntakeAnswer {
   key: string;
   label: string;
   value: string;
-  tier: 1 | 2 | 3;
+  tier: 1 | 2;
 }
 
 /**
@@ -160,9 +162,14 @@ export function buildAnswers(vars: RawVars): IntakeAnswer[] {
 export function parseUserMessage(message: string, existing: RawVars): RawVars {
   const result: RawVars = { ...existing };
 
-  // ZIP code extraction — 5-digit or ZIP+4
+  // ZIP code extraction — 5-digit or ZIP+4.
+  // Negative lookbehind (?<!\$) prevents dollar amounts like "$50000" from matching as ZIP codes.
+  // Known false-positive risk: free-text messages may contain other 5-digit numbers (e.g.
+  // medication doses, year+digit combinations). False positives are low-severity because
+  // the !result.zip_code guard below prevents overwrite once a ZIP is set, and intake
+  // extraction is opportunistic (the dedicated question confirms the value).
   if (!result.zip_code) {
-    const zipMatch = message.match(/\b(\d{5}(?:-\d{4})?)\b/);
+    const zipMatch = message.match(/(?<!\$)\b(\d{5}(?:-\d{4})?)\b/);
     if (zipMatch) {
       result.zip_code = zipMatch[1];
     }
@@ -177,17 +184,30 @@ export function parseUserMessage(message: string, existing: RawVars): RawVars {
       result.annual_income = String(monthly * 12);
     } else {
       // Annual: "$42k" → 42000, "$42,000" → 42000
-      const annualMatch = message.match(/\$\s*([\d,]+)\s*k?\b/i);
-      if (annualMatch) {
-        const raw = annualMatch[1].replace(/,/g, '');
-        // Multiply by 1000 when the matched text ends with 'k' (shorthand: "$42k" = 42000)
-        const suffix = annualMatch[0].toLowerCase().endsWith('k') ? 1000 : 1;
-        result.annual_income = String(parseInt(raw, 10) * suffix);
+      // Require an income-context keyword in the same clause to avoid false positives
+      // on savings amounts, rent, bills, or other dollar figures the user may mention.
+      const hasIncomeKeyword =
+        /\b(?:income|earn|earning|earns|make|makes|making|salary|wages?|pay|paid|gross|annual|year(?:ly)?|per\s+year)\b/i.test(
+          message,
+        );
+      if (hasIncomeKeyword) {
+        const annualMatch = message.match(/\$\s*([\d,]+)\s*k?\b/i);
+        if (annualMatch) {
+          const raw = annualMatch[1].replace(/,/g, '');
+          // Multiply by 1000 when the matched text ends with 'k' (shorthand: "$42k" = 42000)
+          const suffix = annualMatch[0].toLowerCase().endsWith('k') ? 1000 : 1;
+          result.annual_income = String(parseInt(raw, 10) * suffix);
+        }
       }
     }
   }
 
-  // Household composition — look for family/household mentions
+  // Household composition — look for family/household mentions.
+  // Single-person phrases ("just me", "only me", "I live alone") are intentionally
+  // excluded from this keyword list and handled by the raw-answer fallback in the
+  // intake route. Adding single-person phrases here would cause the dedicated
+  // household question to re-extract the answer before the user answers it directly,
+  // creating a confusing loop.
   if (!result.household_profile) {
     const hasFamily =
       /\b(single\s+parent|family|household|kids?|children|child|spouse|partner|husband|wife|son|daughter)\b/i.test(
@@ -246,17 +266,40 @@ export function getNextQuestion(
  * Returns true if the exact same user message already exists in message history.
  */
 export function isIdempotentSubmission(messages: ChatMessage[], content: string): boolean {
-  return messages.some((m) => m.role === 'user' && m.content === content);
+  const normalized = content.trim();
+  return messages.some((m) => m.role === 'user' && m.content.trim() === normalized);
 }
 
 /**
  * Build a human-readable summary string from populated household vars.
+ *
+ * @remarks
+ * **PII-aggregated output** — the returned string combines ZIP code, income,
+ * and household description into a single value. Do NOT log, trace, or send
+ * this value to error reporters, analytics services, or any third-party sink.
+ *
+ * @param vars - Raw session vars (partial HouseholdVars + annual_income).
+ * @returns Pipe-delimited enriched profile string, or null when all relevant
+ *   fields are absent (empty vars object). Callers must check for null before
+ *   overwriting an existing stored value.
  */
-export function buildHouseholdProfile(vars: RawVars): string {
+export function buildHouseholdProfile(vars: RawVars): string | null {
   const parts: string[] = [];
   if (vars.zip_code) parts.push(`ZIP: ${vars.zip_code}`);
-  if (vars.annual_income) parts.push(`Income: $${vars.annual_income}/year`);
-  if (vars.household_profile) parts.push(vars.household_profile);
+  if (vars.annual_income) {
+    const numValue = Number(vars.annual_income);
+    const formatted = isNaN(numValue) ? vars.annual_income : numValue.toLocaleString('en-US');
+    parts.push(`Income: $${formatted}/year`);
+  }
+  if (vars.household_profile) {
+    // Strip any leading enrichment prefix to prevent double-enrichment when this
+    // function is called on a vars object whose household_profile was previously
+    // set to a buildHouseholdProfile output (e.g. "ZIP: 77001 | Income: ... | text").
+    const rawProfile = vars.household_profile
+      .replace(/^(?:ZIP:[^|]*\|\s*)?(?:Income:[^|]*\|\s*)?/, '')
+      .trim();
+    if (rawProfile) parts.push(rawProfile);
+  }
   if (vars.state) parts.push(vars.state);
-  return parts.join(' | ');
+  return parts.length > 0 ? parts.join(' | ') : null;
 }
