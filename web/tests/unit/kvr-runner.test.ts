@@ -1,13 +1,13 @@
 /**
  * Unit tests for web/src/lib/kvr-runner.ts
  *
- * These tests FAIL before implementation (module does not exist).
  * child_process is mocked at the system boundary.
  *
  * Internal functions (_processLine, _checkIdle) must be exported via
  * __internal namespace or test-only export in the implementation.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import path from 'path';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -290,6 +290,7 @@ describe('addController()', () => {
       startedAt: Date.now(),
       lastEventAt: Date.now(),
       controllers: new Set(),
+      history: [],
       idleTimer,
       orphanTimer,
     } as any);
@@ -405,7 +406,7 @@ describe('startRun()', () => {
     expect(spawnCwd).toBeDefined();
     // cwd should be the parent of web/ (i.e., the repo root)
     // process.cwd() in the web/ context is the web directory
-    const expectedParent = require('path').join(process.cwd(), '..');
+    const expectedParent = path.join(process.cwd(), '..');
     expect(spawnCwd).toBe(expectedParent);
   });
 
