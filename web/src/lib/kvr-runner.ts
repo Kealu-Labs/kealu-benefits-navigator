@@ -175,6 +175,34 @@ export function startRun(
   const cwd = path.join(process.cwd(), '..');
 
   const proc = spawn(kvrPath, args, { cwd, shell: false });
+  console.log('KVR spawn debug', {
+    kvrPath,
+    args,
+    cwd,
+    runId,
+    sessionId,
+  });
+  
+  proc.on('spawn', () => {
+    console.log('KVR process spawned', { runId, pid: proc.pid });
+  });
+  
+  proc.on('error', (err) => {
+    console.error('KVR spawn error', { runId, error: err });
+  });
+  
+  proc.stdout?.on('data', (chunk: Buffer) => {
+    console.log('KVR stdout:', chunk.toString());
+  });
+  
+  proc.stderr?.on('data', (chunk: Buffer) => {
+    console.error('KVR stderr:', chunk.toString());
+  });
+  
+  proc.on('close', (code, signal) => {
+    console.log('KVR process closed', { runId, code, signal });
+    setTimeout(() => terminateRun(runId), 2_000);
+  });
 
   const idleTimer = setInterval(() => {
     const run = activeRuns.get(runId);
@@ -211,7 +239,9 @@ export function startRun(
 
   // Drain stderr in the background to prevent the OS pipe buffer from filling
   // and deadlocking stdout (Node.js pipes are bounded at ~64 KB).
-  proc.stderr?.resume();
+  proc.stderr?.on('data', (chunk: Buffer) => {
+    console.error('KVR stderr:', chunk.toString());
+  });
 
   proc.on('close', () => {
     // Delay termination by 2 s to let in-flight stdout lines reach their readline
