@@ -28,6 +28,38 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
   error: 'Error',
 };
 
+/**
+ * Relative share of the overall progress bar each phase accounts for. Weights
+ * sum to 100. Benefits/insurance research are the heaviest (most tool calls and
+ * tokens); later validation/plan phases are quicker. Used to convert discrete
+ * phase completions into an overall percentage.
+ */
+const PHASE_WEIGHTS: Record<PhaseKey, number> = {
+  'benefits-research': 25,
+  'insurance-research': 25,
+  'evidence-verification': 20,
+  'eligibility-validation': 15,
+  'action-plan': 15,
+};
+
+/**
+ * Rough expected active duration (ms) per phase. Used ONLY to animate progress
+ * *within* a running phase so the bar keeps creeping forward between the
+ * discrete phase_start/phase_complete events (each phase can run for minutes).
+ * In-phase progress ramps toward — but never reaches — the phase's full weight,
+ * so the bar only "completes" a segment on the real phase_complete event.
+ */
+const PHASE_EST_MS: Record<PhaseKey, number> = {
+  'benefits-research': 180_000,
+  'insurance-research': 180_000,
+  'evidence-verification': 90_000,
+  'eligibility-validation': 60_000,
+  'action-plan': 90_000,
+};
+
+/** Cap in-phase ramp at 90% of the segment so completion stays event-driven. */
+const IN_PHASE_RAMP_CAP = 0.9;
+
 /** Map a PhaseStatus to the Tailwind utility classes for its tile's border/background/text color. */
 function phaseColorClass(status: PhaseStatus): string {
   switch (status) {
@@ -72,6 +104,14 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
   const esRef = useRef<EventSource | null>(null);
   const fetchingReport = useRef(false);
 
+  // Wall-clock start time per phase (set when it first goes running), used to
+  // animate in-phase progress. A `tick` heartbeat re-renders while any phase runs.
+  const phaseStartedAt = useRef<Partial<Record<PhaseKey, number>>>({});
+  const [, setTick] = useState(0);
+  // Monotonic clamp: the displayed percentage never moves backward (reruns or
+  // ramp re-computation must not make the bar appear to regress).
+  const maxPercentRef = useRef(0);
+
   useEffect(() => {
     const es = new EventSource(`/api/workflow/${runId}/stream`);
     esRef.current = es;
@@ -89,6 +129,9 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
           case 'phase_start': {
             const key = event.phase as PhaseKey | undefined;
             if (key) {
+              // Stamp (or restamp, for a rerun) when this phase began so the
+              // in-phase ramp measures elapsed time from now.
+              phaseStartedAt.current[key] = Date.now();
               setPhaseStatus((prev) => ({
                 ...prev,
                 [key]: prev[key] === 'complete' ? 'rerunning' : 'running',
@@ -127,6 +170,18 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
     };
   }, [runId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Heartbeat: while any phase is actively running, re-render twice a second so
+  // the in-phase progress ramp advances smoothly between SSE events. Stops once
+  // nothing is running (all complete, idle, or errored) to avoid a wasted timer.
+  const anyRunning = PHASES.some(
+    (p) => phaseStatus[p.key] === 'running' || phaseStatus[p.key] === 'rerunning',
+  );
+  useEffect(() => {
+    if (!anyRunning) return;
+    const id = setInterval(() => setTick((t) => t + 1), 500);
+    return () => clearInterval(id);
+  }, [anyRunning]);
+
   async function fetchReport() {
     try {
       const res = await fetch(`/api/workflow/${runId}/report`, { credentials: 'include' });
@@ -146,6 +201,8 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
     setError(null);
     setPhaseStatus(initialStatus());
     fetchingReport.current = false;
+    phaseStartedAt.current = {};
+    maxPercentRef.current = 0;
 
     try {
       const res = await fetch('/api/workflow/start', {
@@ -192,6 +249,29 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
     onEdit();
   }
 
+  // ── Overall weighted progress ─────────────────────────────────────────────
+  // Each completed phase contributes its full weight; a running phase contributes
+  // a time-based fraction of its weight (ramping toward, but capped below, full).
+  const rawPercent = PHASES.reduce((sum, p) => {
+    const weight = PHASE_WEIGHTS[p.key];
+    const status = phaseStatus[p.key];
+    if (status === 'complete') return sum + weight;
+    if (status === 'running' || status === 'rerunning') {
+      const startedAt = phaseStartedAt.current[p.key];
+      const elapsed = startedAt ? Date.now() - startedAt : 0;
+      const frac = Math.min(IN_PHASE_RAMP_CAP, elapsed / PHASE_EST_MS[p.key]);
+      // A rerun re-opens an already-complete segment; floor its contribution at
+      // the ramp cap so the bar holds near-complete rather than dropping back.
+      const floor = status === 'rerunning' ? IN_PHASE_RAMP_CAP : 0;
+      return sum + weight * Math.max(floor, frac);
+    }
+    return sum;
+  }, 0);
+
+  // Clamp monotonic so the bar never visibly regresses.
+  const percent = Math.round(Math.max(maxPercentRef.current, rawPercent));
+  maxPercentRef.current = Math.max(maxPercentRef.current, percent);
+
   // Phases 1+2 (benefits-research, insurance-research) run in parallel in the workflow;
   // render them in a 2-column grid to make that concurrency visible to the user.
   const parallelPhases = PHASES.slice(0, 2);
@@ -218,6 +298,37 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
           </button>
         )}
       </div>
+
+      {/* Overall weighted progress bar */}
+      {!error && (
+        <div>
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-1">
+            <span className="flex items-center gap-1.5">
+              {anyRunning && (
+                <span className="relative flex h-2 w-2" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                </span>
+              )}
+              {percent >= 100 ? 'Finalizing…' : anyRunning ? 'Running' : 'Starting…'}
+            </span>
+            <span className="tabular-nums text-slate-600">{percent}%</span>
+          </div>
+          <div
+            className="h-2 w-full overflow-hidden rounded-full bg-slate-100"
+            role="progressbar"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Overall analysis progress"
+          >
+            <div
+              className="h-full rounded-full bg-blue-500 transition-[width] duration-500 ease-out"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Parallel phases (1+2) */}
       <div className="grid grid-cols-2 gap-3">

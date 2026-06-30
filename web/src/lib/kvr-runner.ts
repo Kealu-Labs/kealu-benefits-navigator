@@ -35,6 +35,13 @@ type StreamController = ReadableStreamDefaultController<Uint8Array>;
  * The `controllers` set fans out SSE payloads to every connected browser tab.
  */
 interface ActiveRun {
+  /**
+   * Replay buffer of every SSE payload broadcast for this run, in order.
+   * KVR can emit early phase_start events before a browser EventSource finishes
+   * connecting; addController() replays this so late-connecting clients still
+   * see those events (otherwise phase cards stay stuck on "Waiting").
+   */
+  history: string[];
   /** The spawned KVR child process. */
   proc: ChildProcess;
   /** UUID v4 run identifier passed to kvr via --run-id. */
@@ -126,6 +133,9 @@ function _checkIdle(
 function broadcastToRun(runId: string, payload: string): void {
   const run = activeRuns.get(runId);
   if (!run) return;
+
+  run.history.push(payload);
+
   const encoder = new TextEncoder();
   for (const ctrl of run.controllers) {
     try {
@@ -134,7 +144,7 @@ function broadcastToRun(runId: string, payload: string): void {
       // Controller closed — ignore
     }
   }
-  // Update last event timestamp
+
   run.lastEventAt = Date.now();
 }
 
@@ -175,34 +185,6 @@ export function startRun(
   const cwd = path.join(process.cwd(), '..');
 
   const proc = spawn(kvrPath, args, { cwd, shell: false });
-  console.log('KVR spawn debug', {
-    kvrPath,
-    args,
-    cwd,
-    runId,
-    sessionId,
-  });
-  
-  proc.on('spawn', () => {
-    console.log('KVR process spawned', { runId, pid: proc.pid });
-  });
-  
-  proc.on('error', (err) => {
-    console.error('KVR spawn error', { runId, error: err });
-  });
-  
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    console.log('KVR stdout:', chunk.toString());
-  });
-  
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    console.error('KVR stderr:', chunk.toString());
-  });
-  
-  proc.on('close', (code, signal) => {
-    console.log('KVR process closed', { runId, code, signal });
-    setTimeout(() => terminateRun(runId), 2_000);
-  });
 
   const idleTimer = setInterval(() => {
     const run = activeRuns.get(runId);
@@ -220,6 +202,7 @@ export function startRun(
     startedAt: Date.now(),
     lastEventAt: Date.now(),
     controllers: new Set(),
+    history: [],
     idleTimer,
   };
 
@@ -287,6 +270,15 @@ export function addController(runId: string, ctrl: StreamController): void {
   }
 
   run.controllers.add(ctrl);
+
+  const encoder = new TextEncoder();
+  for (const payload of run.history) {
+    try {
+      ctrl.enqueue(encoder.encode(payload));
+    } catch {
+      // Controller closed — ignore
+    }
+  }
 }
 
 /**

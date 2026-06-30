@@ -50,7 +50,7 @@ export const TIER_1_FIELDS: IntakeField[] = [
     key: 'annual_income',
     label: 'Annual Income',
     rationale: 'Used to calculate FPL percentage for eligibility thresholds.',
-    prompt: 'What is your estimated annual household income? (e.g., "$42,000" or "$3,500/month")',
+    prompt: 'What is your household\'s approximate income before taxes? You can answer with a yearly amount (e.g. "$42,000") or a monthly amount ("$3,500/month").',
     tier: 1,
   },
   {
@@ -110,10 +110,16 @@ export const TOTAL_STEPS = ALL_FIELDS.length;
 
 /**
  * Field keys whose values are extracted/normalized from free text by
- * parseUserMessage (ZIP validation, income annualization). All other fields
- * store the user's raw answer verbatim, keyed by the question being asked.
+ * parseUserMessage (ZIP validation, income annualization). All other fields —
+ * including household_profile, which is free-text (e.g. "just me, 20") — store
+ * the user's raw answer verbatim, keyed by the question being asked.
+ *
+ * household_profile is intentionally NOT listed: parseUserMessage only captures
+ * it opportunistically when a family keyword is present, so for the dedicated
+ * household question the raw-answer fallback in the intake route must accept any
+ * answer (otherwise single-person households like "just me" loop forever).
  */
-export const PARSED_KEYS = new Set<string>(['zip_code', 'annual_income', 'household_profile']);
+export const PARSED_KEYS = new Set<string>(['zip_code', 'annual_income']);
 
 /** 1-based step number for a field key, or null if the key is not an intake field. */
 export function getFieldStep(key: string): number | null {

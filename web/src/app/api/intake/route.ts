@@ -81,6 +81,11 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const nextField = getNextQuestion(session.vars, session.currentTier, session.skipIntake);
+
+  sessionStore.update(session.sessionId, {
+    pendingField: nextField?.key,
+  });
+  
   return NextResponse.json({
     answers: buildAnswers(session.vars),
     next: nextField
