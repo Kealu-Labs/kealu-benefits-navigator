@@ -31,3 +31,4 @@ Feature: Application Draft PDF Generation
     Then the PDF text contains "77001"
     And the PDF text contains "42,000"
     And the PDF text contains "DRAFT"
+    And the PDF text contains "do NOT pre-fill"
