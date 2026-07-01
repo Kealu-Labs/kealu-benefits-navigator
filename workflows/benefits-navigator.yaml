@@ -713,19 +713,6 @@ phases:
             - "check your local"
             - "contact your state"
 
-    approval_gate:
-      type: hitl
-      message: |
-        Please review the prioritized enrollment action plan before it is delivered to the
-        user. Verify:
-          - All deadlines are realistic and within any Special Enrollment Period windows
-          - Every URL points to an official .gov or authorized program site
-          - Dollar estimates are consistent with the eligibility validation phase
-          - Document checklist items are specific (not vague placeholders)
-          - Contingency paths are logically sound (denial → fallback program is correct)
-        Approve to deliver the plan to the user; reject to send the plan back to the action
-        planner with your correction notes.
-
 # ── Feedback Loops ──────────────────────────────────────────────────────
 # When the Evidence Verifier finds critical errors, send corrections back
 # to the research phases and re-verify.
