@@ -10,7 +10,6 @@ from pytest_bdd import given, parsers, scenario, then, when
 from benefits_navigator.form_filler import (
     fill_official_form,
     generate_application,
-    has_official_form,
 )
 
 # ---------------------------------------------------------------------------
@@ -18,7 +17,9 @@ from benefits_navigator.form_filler import (
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/form_filler.feature", "California gets the official SAWS-1 form filled")
+@scenario(
+    "../features/form_filler.feature", "California gets the official SAWS-1 form filled"
+)
 def test_california_official():
     pass
 
@@ -28,7 +29,9 @@ def test_texas_worksheet():
     pass
 
 
-@scenario("../features/form_filler.feature", "California form has correct program checkboxes")
+@scenario(
+    "../features/form_filler.feature", "California form has correct program checkboxes"
+)
 def test_california_checkboxes():
     pass
 
@@ -38,17 +41,26 @@ def test_state_normalization():
     pass
 
 
-@scenario("../features/form_filler.feature", "Illinois gets the official IL444-2378B form filled")
+@scenario(
+    "../features/form_filler.feature",
+    "Illinois gets the official IL444-2378B form filled",
+)
 def test_illinois_official():
     pass
 
 
-@scenario("../features/form_filler.feature", "New York gets the official LDSS-4826-DD form filled")
+@scenario(
+    "../features/form_filler.feature",
+    "New York gets the official LDSS-4826-DD form filled",
+)
 def test_new_york_official():
     pass
 
 
-@scenario("../features/form_filler.feature", "Pennsylvania gets the official PA-600 form filled")
+@scenario(
+    "../features/form_filler.feature",
+    "Pennsylvania gets the official PA-600 form filled",
+)
 def test_pennsylvania_official():
     pass
 
@@ -228,7 +240,7 @@ def check_fillable_fields(ctx):
 @then(parsers.parse('the output PDF starts with "{header}"'))
 def check_pdf_header(ctx, header):
     data = ctx.path.read_bytes()
-    assert data[:len(header)] == header.encode(), (
+    assert data[: len(header)] == header.encode(), (
         f"Expected PDF to start with '{header}', got {data[:20]}"
     )
 

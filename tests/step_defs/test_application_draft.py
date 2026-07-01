@@ -15,22 +15,31 @@ from benefits_navigator.pdf_generator import generate_application_pdf
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/application_draft.feature", "PDF is generated with correct structure")
+@scenario(
+    "../features/application_draft.feature", "PDF is generated with correct structure"
+)
 def test_pdf_structure():
     pass
 
 
-@scenario("../features/application_draft.feature", "PDF extracts eligible programs from workflow output")
+@scenario(
+    "../features/application_draft.feature",
+    "PDF extracts eligible programs from workflow output",
+)
 def test_pdf_programs():
     pass
 
 
-@scenario("../features/application_draft.feature", "Missing workflow output returns guidance")
+@scenario(
+    "../features/application_draft.feature", "Missing workflow output returns guidance"
+)
 def test_missing_output():
     pass
 
 
-@scenario("../features/application_draft.feature", "Household details are parsed into the PDF")
+@scenario(
+    "../features/application_draft.feature", "Household details are parsed into the PDF"
+)
 def test_household_details():
     pass
 

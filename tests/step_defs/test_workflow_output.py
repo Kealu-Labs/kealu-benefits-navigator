@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from unittest.mock import MagicMock
 
 from pytest_bdd import given, parsers, scenario, then, when
@@ -18,42 +17,65 @@ from ..conftest import MOCK_PHASE_OUTPUTS
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/workflow_output.feature", "All five phase outputs plus sources section are collected and formatted")
+@scenario(
+    "../features/workflow_output.feature",
+    "All five phase outputs plus sources section are collected and formatted",
+)
 def test_five_phases():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Phase outputs appear in workflow order")
+@scenario(
+    "../features/workflow_output.feature", "Phase outputs appear in workflow order"
+)
 def test_phase_order():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Benefits research identifies Texas programs with dollar estimates")
+@scenario(
+    "../features/workflow_output.feature",
+    "Benefits research identifies Texas programs with dollar estimates",
+)
 def test_texas_programs():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Benefits research flags Texas as Medicaid non-expansion state")
+@scenario(
+    "../features/workflow_output.feature",
+    "Benefits research flags Texas as Medicaid non-expansion state",
+)
 def test_non_expansion():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Insurance research returns plan-level premium estimates")
+@scenario(
+    "../features/workflow_output.feature",
+    "Insurance research returns plan-level premium estimates",
+)
 def test_premium_estimates():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Evidence verification recalculates FPL percentage")
+@scenario(
+    "../features/workflow_output.feature",
+    "Evidence verification recalculates FPL percentage",
+)
 def test_fpl_recalc():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Evidence verification catches SNAP threshold error")
+@scenario(
+    "../features/workflow_output.feature",
+    "Evidence verification catches SNAP threshold error",
+)
 def test_snap_correction():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Eligibility validation produces structured determination table")
+@scenario(
+    "../features/workflow_output.feature",
+    "Eligibility validation produces structured determination table",
+)
 def test_eligibility_table():
     pass
 
@@ -63,17 +85,23 @@ def test_gov_urls():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Action plan includes document checklist")
+@scenario(
+    "../features/workflow_output.feature", "Action plan includes document checklist"
+)
 def test_document_checklist():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Action plan flags time-sensitive deadlines")
+@scenario(
+    "../features/workflow_output.feature", "Action plan flags time-sensitive deadlines"
+)
 def test_deadlines():
     pass
 
 
-@scenario("../features/workflow_output.feature", "Workflow failure returns informative error")
+@scenario(
+    "../features/workflow_output.feature", "Workflow failure returns informative error"
+)
 def test_workflow_failure():
     pass
 
@@ -122,9 +150,8 @@ def configure_failure(ctx):
 def run_navigate(ctx, tmp_path, monkeypatch):
     import subprocess as sp
 
-    import benefits_navigator.mcp_server as mcp_mod
-
     if ctx.workflow_should_fail:
+
         def mock_run(cmd, **kwargs):
             result = MagicMock()
             result.returncode = 1
@@ -149,10 +176,14 @@ def run_navigate(ctx, tmp_path, monkeypatch):
         for phase_name, output in ctx.phase_outputs.items():
             md_path = log_dir / f"{phase_name}.md"
             md_path.write_text(output)
-            decision_lines.append(json.dumps({
-                "decision_type": "phase_complete",
-                "phase": phase_name,
-            }))
+            decision_lines.append(
+                json.dumps(
+                    {
+                        "decision_type": "phase_complete",
+                        "phase": phase_name,
+                    }
+                )
+            )
         (log_dir / "decision.jsonl").write_text("\n".join(decision_lines) + "\n")
 
         result = MagicMock()
@@ -171,20 +202,28 @@ def run_navigate(ctx, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@then(parsers.parse("the MCP response contains {count:d} sections separated by horizontal rules"))
+@then(
+    parsers.parse(
+        "the MCP response contains {count:d} sections separated by horizontal rules"
+    )
+)
 def check_section_count(ctx, count):
     # Split on the actual horizontal rule separator (newline-delimited ---)
     # not on table-row separators like ---|---|
     sections = re.split(r"\n---\n", ctx.result)
     sections = [s.strip() for s in sections if s.strip()]
-    assert len(sections) == count, f"Expected {count} sections, got {len(sections)}:\n{ctx.result[:500]}"
+    assert len(sections) == count, (
+        f"Expected {count} sections, got {len(sections)}:\n{ctx.result[:500]}"
+    )
 
 
 @then("each section has a markdown heading")
 def check_headings(ctx):
     sections = [s.strip() for s in re.split(r"\n---\n", ctx.result) if s.strip()]
     for section in sections:
-        assert section.startswith("##"), f"Section doesn't start with heading:\n{section[:200]}"
+        assert section.startswith("##"), (
+            f"Section doesn't start with heading:\n{section[:200]}"
+        )
 
 
 @then(parsers.parse('"{first}" appears before "{second}"'))
@@ -193,7 +232,9 @@ def check_order(ctx, first, second):
     pos_second = ctx.result.find(second)
     assert pos_first != -1, f"'{first}' not found in output"
     assert pos_second != -1, f"'{second}' not found in output"
-    assert pos_first < pos_second, f"'{first}' (pos {pos_first}) should appear before '{second}' (pos {pos_second})"
+    assert pos_first < pos_second, (
+        f"'{first}' (pos {pos_first}) should appear before '{second}' (pos {pos_second})"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +277,9 @@ def check_contains_either(ctx, option_a, option_b):
 @then("the response contains a monthly dollar amount")
 def check_monthly_amount(ctx):
     # Match patterns like $240/month, $380/month, etc.
-    assert re.search(r"\$\d+/month", ctx.result), "No monthly dollar amount (e.g. $240/month) found"
+    assert re.search(r"\$\d+/month", ctx.result), (
+        "No monthly dollar amount (e.g. $240/month) found"
+    )
 
 
 @then(parsers.parse('the response mentions "{tier}" or "{alt_tier}" plan tier'))

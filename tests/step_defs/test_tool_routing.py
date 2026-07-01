@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -17,27 +16,40 @@ from ..conftest import DEMO_PROFILE
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/tool_routing.feature", "navigate_benefits invokes benefits-navigator workflow")
+@scenario(
+    "../features/tool_routing.feature",
+    "navigate_benefits invokes benefits-navigator workflow",
+)
 def test_invokes_workflow():
     pass
 
 
-@scenario("../features/tool_routing.feature", "Workflow variables are passed through to kvr")
+@scenario(
+    "../features/tool_routing.feature", "Workflow variables are passed through to kvr"
+)
 def test_vars_passed():
     pass
 
 
-@scenario("../features/tool_routing.feature", "Empty optional fields are not passed to kvr")
+@scenario(
+    "../features/tool_routing.feature", "Empty optional fields are not passed to kvr"
+)
 def test_empty_fields_omitted():
     pass
 
 
-@scenario("../features/tool_routing.feature", "check_eligibility invokes kvr assist with program name")
+@scenario(
+    "../features/tool_routing.feature",
+    "check_eligibility invokes kvr assist with program name",
+)
 def test_check_eligibility():
     pass
 
 
-@scenario("../features/tool_routing.feature", "compare_insurance_plans invokes kvr assist with zip code")
+@scenario(
+    "../features/tool_routing.feature",
+    "compare_insurance_plans invokes kvr assist with zip code",
+)
 def test_compare_plans():
     pass
 
@@ -79,7 +91,10 @@ def add_profile_fields(ctx, datatable):
         ctx.args[row[0]] = row[1].strip()
 
 
-@given(parsers.parse('a check_eligibility call for program "{program}"'), target_fixture="ctx")
+@given(
+    parsers.parse('a check_eligibility call for program "{program}"'),
+    target_fixture="ctx",
+)
 def given_eligibility_call(program, datatable):
     ctx = RoutingContext()
     ctx.args = {row[0]: row[1].strip() for row in datatable}
@@ -138,7 +153,9 @@ def execute_with_assist_mock(ctx, monkeypatch):
 
     monkeypatch.setattr(sp, "run", mock_run)
 
-    tool_name = "check_eligibility" if "program" in ctx.args else "compare_insurance_plans"
+    tool_name = (
+        "check_eligibility" if "program" in ctx.args else "compare_insurance_plans"
+    )
     ctx.result = _execute_tool(tool_name, ctx.args)
     ctx.kvr_cmd = getattr(captured, "cmd", [])
     ctx.assist_task = getattr(captured, "task_content", getattr(captured, "task", ""))
@@ -175,7 +192,11 @@ def check_flag(ctx, flag, value):
 def check_var_arg(ctx, key, value):
     expected = f"{key}={value}"
     for i, arg in enumerate(ctx.kvr_cmd):
-        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1] == expected:
+        if (
+            arg == "--var"
+            and i + 1 < len(ctx.kvr_cmd)
+            and ctx.kvr_cmd[i + 1] == expected
+        ):
             return
     raise AssertionError(f"Expected '--var' '{expected}' in command: {ctx.kvr_cmd}")
 
@@ -183,14 +204,22 @@ def check_var_arg(ctx, key, value):
 @then(parsers.parse('the kvr command does not include var "{key}"'))
 def check_var_arg_absent(ctx, key):
     for i, arg in enumerate(ctx.kvr_cmd):
-        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1].startswith(f"{key}="):
-            raise AssertionError(f"Found unexpected '--var' '{ctx.kvr_cmd[i + 1]}' in command")
+        if (
+            arg == "--var"
+            and i + 1 < len(ctx.kvr_cmd)
+            and ctx.kvr_cmd[i + 1].startswith(f"{key}=")
+        ):
+            raise AssertionError(
+                f"Found unexpected '--var' '{ctx.kvr_cmd[i + 1]}' in command"
+            )
 
 
 @then("kvr assist was invoked")
 def check_assist_invoked(ctx):
     assert ctx.kvr_cmd, "kvr assist was not invoked"
-    assert any("assist" in arg for arg in ctx.kvr_cmd), f"Expected 'assist' in command: {ctx.kvr_cmd}"
+    assert any("assist" in arg for arg in ctx.kvr_cmd), (
+        f"Expected 'assist' in command: {ctx.kvr_cmd}"
+    )
 
 
 @then(parsers.parse('the task description includes "{text}"'))

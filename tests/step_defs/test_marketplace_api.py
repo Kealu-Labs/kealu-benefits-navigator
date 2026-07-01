@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import re
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.marketplace_api import (
     format_plans_summary,
-    limit_plans,
     resolve_county,
     search_plans,
     estimate_eligibility,
@@ -33,22 +30,30 @@ def test_zip_resolves():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "Invalid ZIP returns empty county list")
+@scenario(
+    "../features/marketplace_api.feature", "Invalid ZIP returns empty county list"
+)
 def test_invalid_zip():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "Eligibility estimate returns APTC and FPL")
+@scenario(
+    "../features/marketplace_api.feature", "Eligibility estimate returns APTC and FPL"
+)
 def test_eligibility_aptc():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "Low-income household flags Medicaid/CHIP")
+@scenario(
+    "../features/marketplace_api.feature", "Low-income household flags Medicaid/CHIP"
+)
 def test_medicaid_flag():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "Plan search returns real marketplace plans")
+@scenario(
+    "../features/marketplace_api.feature", "Plan search returns real marketplace plans"
+)
 def test_plan_search():
     pass
 
@@ -63,7 +68,10 @@ def test_metal_filter():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "Plan summary includes premium range and APTC")
+@scenario(
+    "../features/marketplace_api.feature",
+    "Plan summary includes premium range and APTC",
+)
 def test_summary_format():
     pass
 
@@ -73,32 +81,49 @@ def test_summary_limit():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "compare_insurance_plans uses marketplace API when key is set")
+@scenario(
+    "../features/marketplace_api.feature",
+    "compare_insurance_plans uses marketplace API when key is set",
+)
 def test_compare_with_api():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "compare_insurance_plans falls back to kvr when no API key")
+@scenario(
+    "../features/marketplace_api.feature",
+    "compare_insurance_plans falls back to kvr when no API key",
+)
 def test_compare_fallback_no_key():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "compare_insurance_plans falls back on API error")
+@scenario(
+    "../features/marketplace_api.feature",
+    "compare_insurance_plans falls back on API error",
+)
 def test_compare_fallback_error():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "check_eligibility enriches with CMS data when key is set")
+@scenario(
+    "../features/marketplace_api.feature",
+    "check_eligibility enriches with CMS data when key is set",
+)
 def test_eligibility_enrichment():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "Household profile is parsed into API people list")
+@scenario(
+    "../features/marketplace_api.feature",
+    "Household profile is parsed into API people list",
+)
 def test_parse_household():
     pass
 
 
-@scenario("../features/marketplace_api.feature", "Income is extracted from profile text")
+@scenario(
+    "../features/marketplace_api.feature", "Income is extracted from profile text"
+)
 def test_parse_income():
     pass
 
@@ -151,7 +176,9 @@ def _make_mock_plan(idx: int, metal: str = "Silver", premium: float = 620.0) -> 
         "type": "HMO",
         "premium": premium,
         "premium_w_credit": max(0, premium - aptc),
-        "deductibles": [{"amount": 750 if metal == "Silver" else 3000, "type": "Medical"}],
+        "deductibles": [
+            {"amount": 750 if metal == "Silver" else 3000, "type": "Medical"}
+        ],
         "moops": [{"amount": 4500 if metal == "Silver" else 8000, "type": "Medical"}],
         "quality_rating": {"global_rating": 4},
         "benefits": [],
@@ -159,7 +186,10 @@ def _make_mock_plan(idx: int, metal: str = "Silver", premium: float = 620.0) -> 
 
 
 def _make_plan_search_result(n: int, metal: str | None = None) -> dict:
-    plans = [_make_mock_plan(i, metal or ["Bronze", "Silver", "Gold"][i % 3]) for i in range(n)]
+    plans = [
+        _make_mock_plan(i, metal or ["Bronze", "Silver", "Gold"][i % 3])
+        for i in range(n)
+    ]
     premiums = [p["premium_w_credit"] for p in plans]
     deductibles = [p["deductibles"][0]["amount"] for p in plans]
     return {
@@ -236,7 +266,9 @@ def given_mock_plans(ctx, n):
 
 @given(parsers.parse("a mock eligibility result with APTC {aptc:f}"))
 def given_mock_eligibility(ctx, aptc):
-    ctx.eligibility_result = {"estimates": [{"aptc": aptc, "csr": "CSR-87", "is_medicaid_chip": False}]}
+    ctx.eligibility_result = {
+        "estimates": [{"aptc": aptc, "csr": "CSR-87", "is_medicaid_chip": False}]
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -257,10 +289,14 @@ def resolve_zip(ctx, zip_code, monkeypatch):
 def estimate_elig(ctx, income, n, monkeypatch):
     import benefits_navigator.marketplace_api as api_mod
 
-    response = MOCK_ELIGIBILITY_MEDICAID if income < 25000 else MOCK_ELIGIBILITY_RESPONSE
+    response = (
+        MOCK_ELIGIBILITY_MEDICAID if income < 25000 else MOCK_ELIGIBILITY_RESPONSE
+    )
     monkeypatch.setattr(api_mod, "_post", lambda *a, **kw: response)
     people = [{"age": 30}] + [{"age": 8}] * (n - 1)
-    ctx.eligibility_result = estimate_eligibility(income, people, ctx.state, ctx.fips, ctx.args.get("zip_code", "77001"))
+    ctx.eligibility_result = estimate_eligibility(
+        income, people, ctx.state, ctx.fips, ctx.args.get("zip_code", "77001")
+    )
 
 
 @when(parsers.parse('plans are searched for ZIP "{zip_code}" with income {income:d}'))
@@ -268,22 +304,37 @@ def search(ctx, zip_code, income, monkeypatch):
     import benefits_navigator.marketplace_api as api_mod
 
     monkeypatch.setattr(api_mod, "_post", lambda *a, **kw: _make_plan_search_result(5))
-    ctx.plan_result = search_plans(income, [{"age": 30}, {"age": 4}, {"age": 9}], ctx.fips, ctx.state, zip_code)
+    ctx.plan_result = search_plans(
+        income, [{"age": 30}, {"age": 4}, {"age": 9}], ctx.fips, ctx.state, zip_code
+    )
 
 
-@when(parsers.parse('plans are searched for ZIP "{zip_code}" with income {income:d} filtering "{metal}"'))
+@when(
+    parsers.parse(
+        'plans are searched for ZIP "{zip_code}" with income {income:d} filtering "{metal}"'
+    )
+)
 def search_filtered(ctx, zip_code, income, metal, monkeypatch):
     import benefits_navigator.marketplace_api as api_mod
 
-    monkeypatch.setattr(api_mod, "_post", lambda *a, **kw: _make_plan_search_result(3, metal))
+    monkeypatch.setattr(
+        api_mod, "_post", lambda *a, **kw: _make_plan_search_result(3, metal)
+    )
     ctx.plan_result = search_plans(
-        income, [{"age": 30}, {"age": 4}, {"age": 9}], ctx.fips, ctx.state, zip_code, metal_levels=[metal]
+        income,
+        [{"age": 30}, {"age": 4}, {"age": 9}],
+        ctx.fips,
+        ctx.state,
+        zip_code,
+        metal_levels=[metal],
     )
 
 
 @when("the results are formatted")
 def format_results(ctx):
-    ctx.formatted = format_plans_summary(ctx.plan_result, ctx.eligibility_result or None)
+    ctx.formatted = format_plans_summary(
+        ctx.plan_result, ctx.eligibility_result or None
+    )
 
 
 @when(parsers.parse('compare_insurance_plans is called for ZIP "{zip_code}"'))
@@ -291,13 +342,25 @@ def compare_with_api(ctx, zip_code, monkeypatch):
     import benefits_navigator.marketplace_api as api_mod
 
     monkeypatch.setattr(api_mod, "_get", lambda *a, **kw: MOCK_COUNTY_RESPONSE)
-    monkeypatch.setattr(api_mod, "_post", lambda path, *a, **kw: (
-        MOCK_ELIGIBILITY_RESPONSE if "eligibility" in path else _make_plan_search_result(5)
-    ))
-    ctx.result = _execute_tool("compare_insurance_plans", {**ctx.args, "zip_code": zip_code})
+    monkeypatch.setattr(
+        api_mod,
+        "_post",
+        lambda path, *a, **kw: (
+            MOCK_ELIGIBILITY_RESPONSE
+            if "eligibility" in path
+            else _make_plan_search_result(5)
+        ),
+    )
+    ctx.result = _execute_tool(
+        "compare_insurance_plans", {**ctx.args, "zip_code": zip_code}
+    )
 
 
-@when(parsers.parse('compare_insurance_plans is called for ZIP "{zip_code}" with kvr fallback'))
+@when(
+    parsers.parse(
+        'compare_insurance_plans is called for ZIP "{zip_code}" with kvr fallback'
+    )
+)
 def compare_with_fallback(ctx, zip_code, monkeypatch):
     import subprocess as sp
 
@@ -310,7 +373,9 @@ def compare_with_fallback(ctx, zip_code, monkeypatch):
         return result
 
     monkeypatch.setattr(sp, "run", mock_run)
-    ctx.result = _execute_tool("compare_insurance_plans", {**ctx.args, "zip_code": zip_code})
+    ctx.result = _execute_tool(
+        "compare_insurance_plans", {**ctx.args, "zip_code": zip_code}
+    )
 
 
 @when(parsers.parse('check_eligibility is called for "{program}" with kvr fallback'))
@@ -423,7 +488,9 @@ def check_summary_includes(ctx, text):
 def check_plan_detail_limit(ctx, n):
     # Count ### headings (each plan is a ### section)
     headings = re.findall(r"^### ", ctx.formatted, re.MULTILINE)
-    assert len(headings) <= n, f"Found {len(headings)} plan details, expected at most {n}"
+    assert len(headings) <= n, (
+        f"Found {len(headings)} plan details, expected at most {n}"
+    )
 
 
 @then(parsers.parse('the summary mentions "{text}" total plans'))
@@ -438,7 +505,9 @@ def check_result_includes(ctx, text):
 
 @then("the result includes real plan names")
 def check_real_plan_names(ctx):
-    assert "Blue Cross" in ctx.result, f"Expected real plan name in:\n{ctx.result[:500]}"
+    assert "Blue Cross" in ctx.result, (
+        f"Expected real plan name in:\n{ctx.result[:500]}"
+    )
 
 
 @then("kvr assist was invoked")

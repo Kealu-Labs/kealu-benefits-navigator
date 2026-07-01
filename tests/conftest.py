@@ -3,16 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from benefits_navigator.mcp_server import (
-    _check_intake_completeness,
-    _execute_tool,
-    _handle_request,
-)
 
 # ---------------------------------------------------------------------------
 # Demo household profile — single parent, Harris County TX
@@ -203,10 +197,14 @@ def mock_kvr(tmp_path, monkeypatch):
             for phase_name, output in self.phase_outputs.items():
                 md_path = log_dir / f"{phase_name}.md"
                 md_path.write_text(output)
-                decision_lines.append(json.dumps({
-                    "decision_type": "phase_complete",
-                    "phase": phase_name,
-                }))
+                decision_lines.append(
+                    json.dumps(
+                        {
+                            "decision_type": "phase_complete",
+                            "phase": phase_name,
+                        }
+                    )
+                )
             (log_dir / "decision.jsonl").write_text("\n".join(decision_lines) + "\n")
 
             result = MagicMock()
@@ -230,6 +228,8 @@ def mock_kvr(tmp_path, monkeypatch):
         monkeypatch.setattr("pathlib.Path.cwd", lambda: tmp_path)
         return original_run(args, progress_token=progress_token)
 
-    monkeypatch.setattr(mcp_mod, "_run_benefits_navigator", patched_run_benefits_navigator)
+    monkeypatch.setattr(
+        mcp_mod, "_run_benefits_navigator", patched_run_benefits_navigator
+    )
 
     return mock

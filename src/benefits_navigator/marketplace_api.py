@@ -74,22 +74,36 @@ def _request_with_retry(req: urllib.request.Request) -> Any:
 def _get(path: str, params: dict[str, str] | None = None) -> Any:
     """HTTP GET against the Marketplace API."""
     query = dict(params) if params else {}
-    url = f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}" if query else f"{BASE_URL}{path}"
+    url = (
+        f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}"
+        if query
+        else f"{BASE_URL}{path}"
+    )
     logger.info("GET %s", url)
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "apikey": _api_key()})
+    req = urllib.request.Request(
+        url, headers={"Accept": "application/json", "apikey": _api_key()}
+    )
     return _request_with_retry(req)
 
 
 def _post(path: str, body: dict[str, Any], params: dict[str, str] | None = None) -> Any:
     """HTTP POST against the Marketplace API."""
     query = dict(params) if params else {}
-    url = f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}" if query else f"{BASE_URL}{path}"
+    url = (
+        f"{BASE_URL}{path}?{urllib.parse.urlencode(query)}"
+        if query
+        else f"{BASE_URL}{path}"
+    )
     logger.info("POST %s", url)
     data = json.dumps(body).encode()
     req = urllib.request.Request(
         url,
         data=data,
-        headers={"Content-Type": "application/json", "Accept": "application/json", "apikey": _api_key()},
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "apikey": _api_key(),
+        },
         method="POST",
     )
     return _request_with_retry(req)
@@ -145,7 +159,9 @@ def estimate_eligibility(
         "has_married_couple": any(p.get("relationship") == "spouse" for p in people),
     }
     place = {"countyfips": county_fips, "state": state, "zipcode": zip_code}
-    return _post("/households/eligibility/estimates", {"household": household, "place": place})
+    return _post(
+        "/households/eligibility/estimates", {"household": household, "place": place}
+    )
 
 
 def search_plans(
@@ -229,7 +245,9 @@ def _get_state_medicaid_cached(state_abbrev: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def format_plans_summary(search_result: dict[str, Any], eligibility: dict[str, Any] | None = None) -> str:
+def format_plans_summary(
+    search_result: dict[str, Any], eligibility: dict[str, Any] | None = None
+) -> str:
     """Format plan search results into a readable markdown summary."""
     plans = search_result.get("plans", [])
     total = search_result.get("total", 0)
@@ -248,7 +266,9 @@ def format_plans_summary(search_result: dict[str, Any], eligibility: dict[str, A
                 lines.append(f"**Cost-sharing reduction level:** {csr}")
             is_medicaid = est.get("is_medicaid_chip", False)
             if is_medicaid:
-                lines.append("**Note:** This household may qualify for Medicaid/CHIP — check with your state.")
+                lines.append(
+                    "**Note:** This household may qualify for Medicaid/CHIP — check with your state."
+                )
             lines.append("")
 
     if ranges:
@@ -266,21 +286,31 @@ def format_plans_summary(search_result: dict[str, Any], eligibility: dict[str, A
         lines.append("")
 
     # Top plans by metal level
-    for plan in plans[:limit_plans(plans)]:
+    for plan in plans[: limit_plans(plans)]:
         name = plan.get("name", "Unknown Plan")
         issuer = plan.get("issuer", {}).get("name", "")
         metal = plan.get("metal_level", "").title()
         premium = plan.get("premium", 0)
         premium_w_credit = plan.get("premium_w_credit", premium)
-        deductible = plan.get("deductibles", [{}])[0].get("amount", "N/A") if plan.get("deductibles") else "N/A"
-        moops = plan.get("moops", [{}])[0].get("amount", "N/A") if plan.get("moops") else "N/A"
+        deductible = (
+            plan.get("deductibles", [{}])[0].get("amount", "N/A")
+            if plan.get("deductibles")
+            else "N/A"
+        )
+        moops = (
+            plan.get("moops", [{}])[0].get("amount", "N/A")
+            if plan.get("moops")
+            else "N/A"
+        )
         quality = plan.get("quality_rating", {}).get("global_rating", "N/A")
         plan_type = plan.get("type", "").upper()
 
         lines.append(f"### {name}")
         lines.append(f"- **Issuer:** {issuer}")
         lines.append(f"- **Metal level:** {metal} | **Type:** {plan_type}")
-        lines.append(f"- **Monthly premium:** ${premium:.2f} → **${premium_w_credit:.2f}/mo after tax credit**")
+        lines.append(
+            f"- **Monthly premium:** ${premium:.2f} → **${premium_w_credit:.2f}/mo after tax credit**"
+        )
         lines.append(f"- **Annual deductible:** ${deductible}")
         lines.append(f"- **Out-of-pocket max:** ${moops}")
         if quality != "N/A":

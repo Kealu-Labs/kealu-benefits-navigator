@@ -11,12 +11,17 @@ from benefits_navigator.mcp_server import _handle_request
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/mcp_protocol.feature", "Initialize handshake returns server capabilities")
+@scenario(
+    "../features/mcp_protocol.feature",
+    "Initialize handshake returns server capabilities",
+)
 def test_initialize():
     pass
 
 
-@scenario("../features/mcp_protocol.feature", "Initialized notification returns no response")
+@scenario(
+    "../features/mcp_protocol.feature", "Initialized notification returns no response"
+)
 def test_initialized_notification():
     pass
 
@@ -26,17 +31,26 @@ def test_tools_list():
     pass
 
 
-@scenario("../features/mcp_protocol.feature", "navigate_benefits tool has required household_profile field")
+@scenario(
+    "../features/mcp_protocol.feature",
+    "navigate_benefits tool has required household_profile field",
+)
 def test_navigate_required_fields():
     pass
 
 
-@scenario("../features/mcp_protocol.feature", "check_eligibility tool requires both profile and program")
+@scenario(
+    "../features/mcp_protocol.feature",
+    "check_eligibility tool requires both profile and program",
+)
 def test_eligibility_required_fields():
     pass
 
 
-@scenario("../features/mcp_protocol.feature", "compare_insurance_plans tool requires profile and zip")
+@scenario(
+    "../features/mcp_protocol.feature",
+    "compare_insurance_plans tool requires profile and zip",
+)
 def test_compare_required_fields():
     pass
 
@@ -78,7 +92,11 @@ def _send(method, req_id=None, params=None):
     if req_id is not None:
         request["id"] = req_id
     ctx.response = _handle_request(request)
-    if ctx.response and "result" in ctx.response and "tools" in ctx.response.get("result", {}):
+    if (
+        ctx.response
+        and "result" in ctx.response
+        and "tools" in ctx.response.get("result", {})
+    ):
         ctx.tools = ctx.response["result"]["tools"]
     return ctx
 
@@ -89,7 +107,9 @@ def _send(method, req_id=None, params=None):
 
 
 @when(
-    parsers.re(r'the server receives an? "(?P<method>[^"]+)" request with id (?P<req_id>\d+)'),
+    parsers.re(
+        r'the server receives an? "(?P<method>[^"]+)" request with id (?P<req_id>\d+)'
+    ),
     target_fixture="ctx",
 )
 def send_request(method, req_id):
@@ -105,23 +125,29 @@ def send_notification(method):
 
 
 @when(
-    parsers.re(r'the server receives an? "tools/call" for "(?P<tool_name>[^"]+)" with id (?P<req_id>\d+)'),
+    parsers.re(
+        r'the server receives an? "tools/call" for "(?P<tool_name>[^"]+)" with id (?P<req_id>\d+)'
+    ),
     target_fixture="ctx",
 )
 def send_tool_call(tool_name, req_id, datatable):
     ctx = McpContext()
     arguments = {row[0]: row[1].strip() for row in datatable}
-    ctx.response = _handle_request({
-        "jsonrpc": "2.0",
-        "id": int(req_id),
-        "method": "tools/call",
-        "params": {"name": tool_name, "arguments": arguments},
-    })
+    ctx.response = _handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": int(req_id),
+            "method": "tools/call",
+            "params": {"name": tool_name, "arguments": arguments},
+        }
+    )
     return ctx
 
 
 @when(
-    parsers.re(r'the server receives an unknown method "(?P<method>[^"]+)" with id (?P<req_id>\d+)'),
+    parsers.re(
+        r'the server receives an unknown method "(?P<method>[^"]+)" with id (?P<req_id>\d+)'
+    ),
     target_fixture="ctx",
 )
 def send_unknown_with_id(method, req_id):
@@ -129,7 +155,9 @@ def send_unknown_with_id(method, req_id):
 
 
 @when(
-    parsers.re(r'the server receives an unknown method "(?P<method>[^"]+)" without an id'),
+    parsers.re(
+        r'the server receives an unknown method "(?P<method>[^"]+)" without an id'
+    ),
     target_fixture="ctx",
 )
 def send_unknown_without_id(method):
@@ -180,7 +208,9 @@ def check_tool_required_field(ctx, tool_name, field):
     tool = next((t for t in ctx.tools if t["name"] == tool_name), None)
     assert tool is not None, f"Tool '{tool_name}' not found"
     required = tool["inputSchema"].get("required", [])
-    assert field in required, f"'{field}' not in required fields {required} for {tool_name}"
+    assert field in required, (
+        f"'{field}' not in required fields {required} for {tool_name}"
+    )
 
 
 @then("the response has a content array")

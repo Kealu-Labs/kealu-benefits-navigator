@@ -363,27 +363,49 @@ def _resolve_kvr() -> str:
 _TOOL_DISPATCH: dict[str, Any] = {}  # populated after function definitions
 
 
-def _execute_tool(name: str, arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _execute_tool(
+    name: str, arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     """Execute a tool by name via dispatch table.
 
     Returns the workflow output as a string.
     """
     corr_id = uuid.uuid4().hex[:12]
-    _audit_log("tool_call", name, "started", correlation_id=corr_id, details={"has_zip": bool(arguments.get("zip_code"))})
+    _audit_log(
+        "tool_call",
+        name,
+        "started",
+        correlation_id=corr_id,
+        details={"has_zip": bool(arguments.get("zip_code"))},
+    )
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
-        _audit_log("tool_call", name, "error", correlation_id=corr_id, details={"reason": "unknown_tool"})
+        _audit_log(
+            "tool_call",
+            name,
+            "error",
+            correlation_id=corr_id,
+            details={"reason": "unknown_tool"},
+        )
         return f"Unknown tool: {name}"
     try:
         result = handler(arguments, progress_token=progress_token)
         _audit_log("tool_call", name, "completed", correlation_id=corr_id)
         return result
     except Exception as e:
-        _audit_log("tool_call", name, "error", correlation_id=corr_id, details={"error": str(e)})
+        _audit_log(
+            "tool_call",
+            name,
+            "error",
+            correlation_id=corr_id,
+            details={"error": str(e)},
+        )
         raise
 
 
-def _handle_navigate_benefits(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_navigate_benefits(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     if not arguments.get("skip_intake"):
         missing = _check_intake_completeness(arguments)
         if missing:
@@ -391,15 +413,21 @@ def _handle_navigate_benefits(arguments: dict[str, Any], *, progress_token: str 
     return _run_benefits_navigator(arguments, progress_token=progress_token)
 
 
-def _handle_check_eligibility(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_check_eligibility(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     return _run_eligibility_check(arguments)
 
 
-def _handle_compare_insurance(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_compare_insurance(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     return _run_insurance_comparison(arguments)
 
 
-def _handle_generate_application_draft(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_generate_application_draft(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     return _run_generate_application_draft(arguments)
 
 
@@ -591,7 +619,8 @@ def _check_intake_completeness(args: dict[str, Any]) -> str | None:
         )
 
     if not args.get("providers") and not any(
-        m in profile_lower for m in ["doctor", "dr.", "provider", "pediatrician", "physician"]
+        m in profile_lower
+        for m in ["doctor", "dr.", "provider", "pediatrician", "physician"]
     ):
         missing_recommended.append(
             (
@@ -693,8 +722,9 @@ def _format_intake_response(
     return "\n".join(lines)
 
 
-
-def _run_benefits_navigator(args: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _run_benefits_navigator(
+    args: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     """Run the full benefits-navigator workflow with optional progress streaming."""
     try:
         kvr = _resolve_kvr()
@@ -751,11 +781,18 @@ def _run_benefits_navigator(args: dict[str, Any], *, progress_token: str | None 
         else:
             # Simple mode: wait for completion
             result = subprocess.run(
-                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                text=True, timeout=KVR_TIMEOUT,
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=KVR_TIMEOUT,
             )
             if result.returncode != 0:
-                logger.warning("kvr exited with code %d: %s", result.returncode, result.stderr[:500])
+                logger.warning(
+                    "kvr exited with code %d: %s",
+                    result.returncode,
+                    result.stderr[:500],
+                )
             returncode = result.returncode
 
         log_dir = Path.cwd() / ".workforce" / run_id
@@ -778,11 +815,15 @@ def _run_benefits_navigator(args: dict[str, Any], *, progress_token: str | None 
                     if not line.strip():
                         continue
                     data = json.loads(line)
-                    if data.get("decision_type") == "phase_complete" and data.get("phase"):
+                    if data.get("decision_type") == "phase_complete" and data.get(
+                        "phase"
+                    ):
                         phase_order.append(data["phase"])
                     # Legacy format fallback
                     elif data.get("type") == "PHASE_RESULT" and data.get("phase_name"):
-                        phase_outputs[data["phase_name"]] = data.get("metadata", {}).get("output", "")
+                        phase_outputs[data["phase_name"]] = data.get(
+                            "metadata", {}
+                        ).get("output", "")
 
         # Primary: read {phase-name}.md files written by kvr
         md_outputs: dict[str, str] = {}
@@ -829,7 +870,9 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
     completed_phases = 0
     total_phases = 0
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
     # Drain stderr in background to prevent deadlock when kvr emits >64KB
     stderr_output: list[str] = []
     stderr_thread = threading.Thread(
@@ -849,7 +892,7 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
                 continue
 
             try:
-                event = json.loads(line[len(_PHASE_STREAM_PREFIX):])
+                event = json.loads(line[len(_PHASE_STREAM_PREFIX) :])
             except json.JSONDecodeError:
                 logger.warning("Malformed phase-stream JSON: %s", line[:200])
                 continue
@@ -865,12 +908,19 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
             elif event_type == "phase_start":
                 total = metadata.get("total_phases", total_phases)
                 phase_label = phase.replace("-", " ").title()
-                _send_progress(progress_token, completed_phases, total, f"Running: {phase_label}")
+                _send_progress(
+                    progress_token, completed_phases, total, f"Running: {phase_label}"
+                )
 
             elif event_type == "phase_complete":
                 completed_phases += 1
                 phase_label = phase.replace("-", " ").title()
-                _send_progress(progress_token, completed_phases, total_phases, f"Completed: {phase_label}")
+                _send_progress(
+                    progress_token,
+                    completed_phases,
+                    total_phases,
+                    f"Completed: {phase_label}",
+                )
 
     finally:
         proc.wait()
@@ -931,8 +981,12 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
                     # Parallelize eligibility and Medicaid lookup
                     elig = None
                     medicaid = None
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                        elig_future = executor.submit(estimate_eligibility, income, people, state, fips, zip_code)
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=2
+                    ) as executor:
+                        elig_future = executor.submit(
+                            estimate_eligibility, income, people, state, fips, zip_code
+                        )
                         medicaid_future = executor.submit(get_state_medicaid, state)
                         try:
                             elig = elig_future.result()
@@ -941,18 +995,26 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
                         try:
                             medicaid = medicaid_future.result()
                         except Exception:
-                            logger.debug("Medicaid enrichment failed for state %s", state, exc_info=True)
+                            logger.debug(
+                                "Medicaid enrichment failed for state %s",
+                                state,
+                                exc_info=True,
+                            )
 
                     estimates = (elig or {}).get("estimates", [{}])
                     if estimates:
                         est = estimates[0]
                         lines = ["## CMS Marketplace Data (Live)\n"]
-                        lines.append(f"- **APTC (tax credit):** ${est.get('aptc', 0):.2f}/month")
+                        lines.append(
+                            f"- **APTC (tax credit):** ${est.get('aptc', 0):.2f}/month"
+                        )
                         csr = est.get("csr", "none")
                         if csr and csr != "none":
                             lines.append(f"- **Cost-sharing reduction:** {csr}")
                         if est.get("is_medicaid_chip"):
-                            lines.append("- **Medicaid/CHIP:** Household likely qualifies")
+                            lines.append(
+                                "- **Medicaid/CHIP:** Household likely qualifies"
+                            )
                         fpl_pct = est.get("fpl", 0)
                         if fpl_pct:
                             lines.append(f"- **Federal Poverty Level:** {fpl_pct:.1f}%")
@@ -982,7 +1044,10 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             f"Use the benefits-navigator context for FPL tables and program reference."
         )
         task_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
+            mode="w",
+            suffix=".txt",
+            prefix="kvr-task-",
+            delete=False,
         )
         task_file.write(task)
         task_file.close()
@@ -992,7 +1057,11 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             text=True,
             timeout=KVR_TIMEOUT,
         )
-        assist_output = result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
+        assist_output = (
+            result.stdout.strip()
+            or result.stderr.strip()
+            or f"Exit code: {result.returncode}"
+        )
         return enrichment + assist_output
     except Exception as e:
         logger.exception("eligibility check failed")
@@ -1012,7 +1081,9 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
         return "ZIP code is required for insurance plan comparison."
 
     if not re.fullmatch(r"\d{5}", zip_code):
-        return f"Invalid ZIP code format: {zip_code!r} (expected 5 digits, e.g. '77001')."
+        return (
+            f"Invalid ZIP code format: {zip_code!r} (expected 5 digits, e.g. '77001')."
+        )
 
     # If no API key, fall back to kvr assist
     if not os.environ.get("CMS_API_KEY"):
@@ -1043,13 +1114,20 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
         # Step 3 & 4: Get eligibility and search plans in parallel
         eligibility = None
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            elig_future = executor.submit(estimate_eligibility, income, people, state, fips, zip_code)
-            plans_future = executor.submit(search_plans, income, people, fips, state, zip_code)
+            elig_future = executor.submit(
+                estimate_eligibility, income, people, state, fips, zip_code
+            )
+            plans_future = executor.submit(
+                search_plans, income, people, fips, state, zip_code
+            )
 
             try:
                 eligibility = elig_future.result()
             except Exception:
-                logger.warning("Eligibility estimate failed — continuing without APTC", exc_info=True)
+                logger.warning(
+                    "Eligibility estimate failed — continuing without APTC",
+                    exc_info=True,
+                )
 
             result = plans_future.result()
 
@@ -1078,7 +1156,10 @@ def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
             f"Use the benefits-navigator context for insurance channel reference."
         )
         task_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
+            mode="w",
+            suffix=".txt",
+            prefix="kvr-task-",
+            delete=False,
         )
         task_file.write(task)
         task_file.close()
@@ -1088,7 +1169,11 @@ def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
             text=True,
             timeout=KVR_TIMEOUT,
         )
-        return result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
+        return (
+            result.stdout.strip()
+            or result.stderr.strip()
+            or f"Exit code: {result.returncode}"
+        )
     except Exception as e:
         logger.exception("insurance comparison fallback failed")
         return f"Error comparing insurance plans: {e}"
@@ -1116,7 +1201,9 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
 
     # Determine child gender — if both genders mentioned, alternate; else use CMS default
     child_gender = "Female"  # CMS API default
-    if any(m in profile_lower for m in ["boy", "son "]) and not any(m in profile_lower for m in ["girl", "daughter"]):
+    if any(m in profile_lower for m in ["boy", "son "]) and not any(
+        m in profile_lower for m in ["girl", "daughter"]
+    ):
         child_gender = "Male"
 
     child_ages = []
@@ -1161,7 +1248,9 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
             target = len(people)
         target = min(target, MAX_HOUSEHOLD_SIZE)
         while len(people) < target:
-            people.append({"age": DEFAULT_ADULT_AGE, "gender": "Female", "uses_tobacco": False})
+            people.append(
+                {"age": DEFAULT_ADULT_AGE, "gender": "Female", "uses_tobacco": False}
+            )
 
     # If we only have 1 person but "kids" or "children" are mentioned, add defaults
     kid_match = _KID_COUNT_RE.search(profile)
@@ -1172,7 +1261,9 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
             n_kids = 0
         n_kids = min(n_kids, MAX_HOUSEHOLD_SIZE - len(people))
         for _ in range(n_kids):
-            people.append({"age": DEFAULT_CHILD_AGE, "gender": "Female", "uses_tobacco": False})
+            people.append(
+                {"age": DEFAULT_CHILD_AGE, "gender": "Female", "uses_tobacco": False}
+            )
 
     # Cap total household size
     people = people[:MAX_HOUSEHOLD_SIZE]
@@ -1216,7 +1307,10 @@ def _parse_income(args: dict[str, Any]) -> int:
                     income *= 1000
                 return income
 
-    logger.warning("No income found in profile, using default %d — results may be inaccurate", DEFAULT_INCOME)
+    logger.warning(
+        "No income found in profile, using default %d — results may be inaccurate",
+        DEFAULT_INCOME,
+    )
     return DEFAULT_INCOME
 
 
@@ -1260,12 +1354,16 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
                 url_entries[url] = source_type
 
     # Extract verification summary from evidence-verification phase
-    verify_text = phase_outputs.get("evidence-verify", phase_outputs.get("evidence-verification", ""))
+    verify_text = phase_outputs.get(
+        "evidence-verify", phase_outputs.get("evidence-verification", "")
+    )
     verify_summary = ""
     for line in verify_text.split("\n"):
         if "checks performed" in line.lower() or "total checks" in line.lower():
             verify_summary = re.sub(
-                r"^[#*\s]*(?:SUMMARY:\s*)?", "", line,
+                r"^[#*\s]*(?:SUMMARY:\s*)?",
+                "",
+                line,
             ).strip()
             break
 
@@ -1281,9 +1379,7 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
             "against official reference tables."
         )
     else:
-        parts.append(
-            "The following sources were cited in this analysis."
-        )
+        parts.append("The following sources were cited in this analysis.")
 
     if verify_summary:
         parts.append("")
@@ -1320,20 +1416,56 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 
 _STATE_CODES: dict[str, str] = {
-    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
-    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
-    "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
-    "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
-    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
-    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN",
-    "mississippi": "MS", "missouri": "MO", "montana": "MT", "nebraska": "NE",
-    "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ",
-    "new mexico": "NM", "new york": "NY", "north carolina": "NC",
-    "north dakota": "ND", "ohio": "OH", "oklahoma": "OK", "oregon": "OR",
-    "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
-    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
-    "vermont": "VT", "virginia": "VA", "washington": "WA",
-    "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
+    "alabama": "AL",
+    "alaska": "AK",
+    "arizona": "AZ",
+    "arkansas": "AR",
+    "california": "CA",
+    "colorado": "CO",
+    "connecticut": "CT",
+    "delaware": "DE",
+    "florida": "FL",
+    "georgia": "GA",
+    "hawaii": "HI",
+    "idaho": "ID",
+    "illinois": "IL",
+    "indiana": "IN",
+    "iowa": "IA",
+    "kansas": "KS",
+    "kentucky": "KY",
+    "louisiana": "LA",
+    "maine": "ME",
+    "maryland": "MD",
+    "massachusetts": "MA",
+    "michigan": "MI",
+    "minnesota": "MN",
+    "mississippi": "MS",
+    "missouri": "MO",
+    "montana": "MT",
+    "nebraska": "NE",
+    "nevada": "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    "ohio": "OH",
+    "oklahoma": "OK",
+    "oregon": "OR",
+    "pennsylvania": "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    "tennessee": "TN",
+    "texas": "TX",
+    "utah": "UT",
+    "vermont": "VT",
+    "virginia": "VA",
+    "washington": "WA",
+    "west virginia": "WV",
+    "wisconsin": "WI",
+    "wyoming": "WY",
 }
 
 
@@ -1407,12 +1539,14 @@ def _run_generate_application_draft(args: dict[str, Any]) -> str:
 
 
 # Populate dispatch table now that handlers are defined
-_TOOL_DISPATCH.update({
-    "navigate_benefits": _handle_navigate_benefits,
-    "check_eligibility": _handle_check_eligibility,
-    "compare_insurance_plans": _handle_compare_insurance,
-    "generate_application_draft": _handle_generate_application_draft,
-})
+_TOOL_DISPATCH.update(
+    {
+        "navigate_benefits": _handle_navigate_benefits,
+        "check_eligibility": _handle_check_eligibility,
+        "compare_insurance_plans": _handle_compare_insurance,
+        "generate_application_draft": _handle_generate_application_draft,
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1509,7 +1643,9 @@ def main() -> None:
 
     # Startup validation
     if not shutil.which("kvr"):
-        logger.warning("kvr not found on PATH — navigate_benefits and check_eligibility will fail")
+        logger.warning(
+            "kvr not found on PATH — navigate_benefits and check_eligibility will fail"
+        )
     if not os.environ.get("CMS_API_KEY"):
         logger.warning("CMS_API_KEY not set — marketplace API features unavailable")
 

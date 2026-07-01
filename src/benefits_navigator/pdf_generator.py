@@ -39,19 +39,20 @@ class _PdfWriter:
         """
         stream_parts: list[str] = []
         for text, x, y, size in lines:
-            escaped = (
-                text.replace("\\", "\\\\")
-                .replace("(", "\\(")
-                .replace(")", "\\)")
+            escaped = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+            stream_parts.append(
+                f"BT /F1 {size:.0f} Tf {x:.1f} {y:.1f} Td ({escaped}) Tj ET"
             )
-            stream_parts.append(f"BT /F1 {size:.0f} Tf {x:.1f} {y:.1f} Td ({escaped}) Tj ET")
 
         stream = "\n".join(stream_parts)
         stream_bytes = stream.encode("latin-1", errors="replace")
 
         stream_obj = self._add_obj(
-            b"<< /Length " + str(len(stream_bytes)).encode() + b" >>\nstream\n"
-            + stream_bytes + b"\nendstream"
+            b"<< /Length "
+            + str(len(stream_bytes)).encode()
+            + b" >>\nstream\n"
+            + stream_bytes
+            + b"\nendstream"
         )
 
         page_obj = self._add_obj(
@@ -153,7 +154,13 @@ def _build_header_page(
 
     y = _add_text(lines, "BENEFIT APPLICATION DRAFT", y, size=18, bold=True)
     y -= 8
-    y = _add_text(lines, "*** DRAFT FOR REVIEW - NOT A FINAL SUBMISSION ***", y, size=12, bold=True)
+    y = _add_text(
+        lines,
+        "*** DRAFT FOR REVIEW - NOT A FINAL SUBMISSION ***",
+        y,
+        size=12,
+        bold=True,
+    )
     y -= 20
 
     y = _add_text(lines, f"Generated: {generated_at}", y, size=9)
@@ -169,10 +176,16 @@ def _build_header_page(
     fields = [
         ("Full Name", household.get("name", "________________________")),
         ("Date of Birth", household.get("dob", "____/____/________")),
-        ("Address", household.get("address", "________________________________________")),
-        ("City, State, ZIP", f"{household.get('city', '_____________')}, "
-                             f"{household.get('state', '____')} "
-                             f"{household.get('zip_code', '_________')}"),
+        (
+            "Address",
+            household.get("address", "________________________________________"),
+        ),
+        (
+            "City, State, ZIP",
+            f"{household.get('city', '_____________')}, "
+            f"{household.get('state', '____')} "
+            f"{household.get('zip_code', '_________')}",
+        ),
         ("Phone", household.get("phone", "(____) ____-________")),
         ("Email", household.get("email", "________________________________")),
         ("Household Size", str(household.get("household_size", "____"))),
@@ -222,11 +235,25 @@ def _build_household_page(
     for i, member in enumerate(members, 1):
         y = _add_text(lines, f"Member {i}:", y, size=11, bold=True)
         y -= 2
-        y = _add_text(lines, f"  Name: {member.get('name', '________________________')}", y)
-        y = _add_text(lines, f"  Relationship: {member.get('relationship', '________________')}", y)
-        y = _add_text(lines, f"  Age: {member.get('age', '____')}    DOB: {member.get('dob', '____/____/________')}", y)
-        y = _add_text(lines, f"  SSN: ____-____-________  (do NOT pre-fill)", y, size=9)
-        y = _add_text(lines, f"  Health Conditions: {member.get('health_needs', '________________________________')}", y)
+        y = _add_text(
+            lines, f"  Name: {member.get('name', '________________________')}", y
+        )
+        y = _add_text(
+            lines,
+            f"  Relationship: {member.get('relationship', '________________')}",
+            y,
+        )
+        y = _add_text(
+            lines,
+            f"  Age: {member.get('age', '____')}    DOB: {member.get('dob', '____/____/________')}",
+            y,
+        )
+        y = _add_text(lines, "  SSN: ____-____-________  (do NOT pre-fill)", y, size=9)
+        y = _add_text(
+            lines,
+            f"  Health Conditions: {member.get('health_needs', '________________________________')}",
+            y,
+        )
         y -= 12
 
         if y < _MARGIN_TOP + 80:
@@ -277,7 +304,11 @@ def _build_documents_page(
     )
     y -= 20
 
-    y = _add_text(lines, "Signature: ________________________________________    Date: ____/____/________", y)
+    y = _add_text(
+        lines,
+        "Signature: ________________________________________    Date: ____/____/________",
+        y,
+    )
     y -= 16
     y = _add_text(lines, "Print Name: ________________________________________", y)
 
@@ -293,9 +324,20 @@ def _parse_programs_from_output(workflow_output: str) -> list[str]:
     """Extract program names from workflow output text."""
     programs = []
     known = [
-        "Medicaid", "CHIP", "SNAP", "WIC", "LIHEAP", "Section 8",
-        "TANF", "ACA Marketplace", "Head Start", "Free School Lunch",
-        "Reduced School Lunch", "NSLP", "Lifeline", "EITC",
+        "Medicaid",
+        "CHIP",
+        "SNAP",
+        "WIC",
+        "LIHEAP",
+        "Section 8",
+        "TANF",
+        "ACA Marketplace",
+        "Head Start",
+        "Free School Lunch",
+        "Reduced School Lunch",
+        "NSLP",
+        "Lifeline",
+        "EITC",
     ]
     output_upper = workflow_output.upper()
     for prog in known:
@@ -309,16 +351,37 @@ def _parse_documents_from_output(workflow_output: str) -> list[str]:
     documents = []
     # Look for common document mentions
     doc_patterns = [
-        (r"(?:proof of |verify )?income", "Proof of income (pay stubs, tax return, W-2)"),
-        (r"(?:birth certificate|proof of age)", "Birth certificates for all household members"),
-        (r"(?:social security|SSN|SS card)", "Social Security cards for all household members"),
+        (
+            r"(?:proof of |verify )?income",
+            "Proof of income (pay stubs, tax return, W-2)",
+        ),
+        (
+            r"(?:birth certificate|proof of age)",
+            "Birth certificates for all household members",
+        ),
+        (
+            r"(?:social security|SSN|SS card)",
+            "Social Security cards for all household members",
+        ),
         (r"(?:photo id|driver.?s? license|state id)", "Government-issued photo ID"),
-        (r"(?:proof of )?residen(?:ce|cy)", "Proof of residency (utility bill, lease agreement)"),
-        (r"(?:immigration|citizenship|naturalization)", "Proof of citizenship or immigration status"),
+        (
+            r"(?:proof of )?residen(?:ce|cy)",
+            "Proof of residency (utility bill, lease agreement)",
+        ),
+        (
+            r"(?:immigration|citizenship|naturalization)",
+            "Proof of citizenship or immigration status",
+        ),
         (r"(?:bank statement|financial|asset)", "Bank statements (last 3 months)"),
-        (r"(?:rent|mortgage|housing)", "Housing cost documentation (lease, mortgage statement)"),
+        (
+            r"(?:rent|mortgage|housing)",
+            "Housing cost documentation (lease, mortgage statement)",
+        ),
         (r"(?:medical|health) record", "Medical records or physician statements"),
-        (r"(?:cobra|employer|coverage).{0,20}(?:letter|notice)", "Coverage loss documentation (COBRA notice, termination letter)"),
+        (
+            r"(?:cobra|employer|coverage).{0,20}(?:letter|notice)",
+            "Coverage loss documentation (COBRA notice, termination letter)",
+        ),
         (r"(?:child care|daycare)", "Child care expense documentation"),
         (r"(?:disability|SSI|SSDI)", "Disability determination letter (if applicable)"),
     ]
@@ -363,7 +426,12 @@ def _parse_household_from_args(args: dict[str, Any]) -> dict[str, Any]:
         profile,
     )
     if income_match:
-        raw = (income_match.group(1) or income_match.group(2) or income_match.group(3) or "").replace(",", "")
+        raw = (
+            income_match.group(1)
+            or income_match.group(2)
+            or income_match.group(3)
+            or ""
+        ).replace(",", "")
         if raw:
             amount = int(raw)
             if amount < 1000:
@@ -404,35 +472,41 @@ def _parse_members_from_args(args: dict[str, Any]) -> list[dict[str, Any]]:
     if re.search(r"single (?:parent|mom|mother|dad|father)", profile, re.IGNORECASE):
         relationship = "Self (Single Parent, Head of Household)"
 
-    members.append({
-        "name": "",
-        "relationship": relationship,
-        "age": adult_age,
-        "health_needs": args.get("health_needs", ""),
-    })
+    members.append(
+        {
+            "name": "",
+            "relationship": relationship,
+            "age": adult_age,
+            "health_needs": args.get("health_needs", ""),
+        }
+    )
 
     # Children
     child_num = 1
     for pair in age_pairs:
         for age in pair:
             if int(age) < 19:
-                members.append({
-                    "name": "",
-                    "relationship": f"Child {child_num}",
-                    "age": age,
-                    "health_needs": "",
-                })
+                members.append(
+                    {
+                        "name": "",
+                        "relationship": f"Child {child_num}",
+                        "age": age,
+                        "health_needs": "",
+                    }
+                )
                 child_num += 1
 
     # Any single ages that are children
     for age in single_ages:
         if int(age) < 19 and not any(m["age"] == age for m in members):
-            members.append({
-                "name": "",
-                "relationship": f"Child {child_num}",
-                "age": age,
-                "health_needs": "",
-            })
+            members.append(
+                {
+                    "name": "",
+                    "relationship": f"Child {child_num}",
+                    "age": age,
+                    "health_needs": "",
+                }
+            )
             child_num += 1
 
     return members
