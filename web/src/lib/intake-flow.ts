@@ -40,23 +40,26 @@ export interface IntakeField {
 /** Tier 1 fields — minimum required to start research. */
 export const TIER_1_FIELDS: IntakeField[] = [
   {
-    key: 'zip_code',
-    label: 'ZIP Code',
-    rationale: 'Required for marketplace plan lookup and state/county benefit programs.',
-    prompt: 'What is your ZIP code?',
-    tier: 1,
-  },
+  key: 'zip_code',
+  label: 'ZIP Code',
+  rationale: 'Your ZIP code tells us which health plans, state programs, county services, clinics, and local assistance options are available where you live.',
+  prompt:
+    'Hello! I am an AI Agent powered by Kealu Vector to help you find health insurance and benefit programs for your household.\n\n' +
+    'I\'ll ask a few questions to understand your situation — no account info needed, and your information always stays private.\n\n' +
+    'Let\'s start with some basics. What is your ZIP code?',
+  tier: 1,
+},
   {
     key: 'annual_income',
     label: 'Annual Income',
-    rationale: 'Used to calculate FPL percentage for eligibility thresholds.',
+    rationale: 'Your income helps estimate what programs you may qualify for, including Medicaid, SNAP, marketplace discounts, premium tax credits, and other cost-saving benefits.',
     prompt: 'What is your household\'s approximate income before taxes? You can answer with a yearly amount (e.g. "$42,000") or a monthly amount ("$3,500/month").',
     tier: 1,
   },
   {
     key: 'household_profile',
     label: 'Household Composition',
-    rationale: 'Household size and member ages determine FPL thresholds and program eligibility.',
+    rationale: 'Who is in your household affects eligibility rules, benefit amounts, medical plan options, and special programs for children, pregnancy, disability, veterans, or older adults.',
     prompt:
       'Please describe your household: how many people, their ages, and any special circumstances (e.g., pregnancy, disability, veteran status)?',
     tier: 1,
@@ -68,35 +71,35 @@ export const TIER_2_FIELDS: IntakeField[] = [
   {
     key: 'current_coverage',
     label: 'Current Coverage',
-    rationale: 'Determines whether gap coverage or transition assistance is needed.',
+    rationale: 'Knowing your current coverage helps us understand whether you need a new plan, help keeping existing coverage, gap coverage, COBRA alternatives, or urgent support if you are uninsured.',
     prompt: 'Are you currently insured? If so, through what (employer, COBRA, etc.)? If not, how long have you been uninsured?',
     tier: 2,
   },
   {
     key: 'medications',
     label: 'Medications',
-    rationale: 'Formulary matching ensures plan covers needed prescriptions.',
+    rationale: 'Medication information helps identify plans that cover the prescriptions you rely on and avoid options that could leave you paying much more at the pharmacy.',
     prompt: 'What prescription medications do you or household members take regularly? (Include drug name, dosage, and frequency, or "none".)',
     tier: 2,
   },
   {
     key: 'providers',
     label: 'Current Providers',
-    rationale: 'Network matching keeps you with existing doctors.',
+    rationale: 'Provider information helps check whether important doctors, specialists, clinics, or hospitals are likely to be in-network so you can avoid surprise costs or losing care.',
     prompt: 'Do you have doctors or specialists you need to keep? (Name, practice, specialty — or "none".)',
     tier: 2,
   },
   {
     key: 'premium_budget',
     label: 'Premium Budget',
-    rationale: 'Filters plans by affordability.',
+    rationale: 'Your monthly budget helps us focus on realistic options, including low-premium plans, subsidies, and programs that may reduce or remove monthly costs.',
     prompt: 'What is the maximum monthly premium you can afford? (e.g., "$300/month" or "as low as possible")',
     tier: 2,
   },
   {
     key: 'health_needs',
     label: 'Health Needs',
-    rationale: 'Identifies chronic conditions and anticipated care to match cost-sharing.',
+    rationale: 'Health needs help match you with coverage that fits expected care, such as chronic conditions, upcoming procedures, mental health care, frequent visits, or special services.',
     prompt: 'Do you or household members have any chronic conditions, planned procedures, or specific health needs?',
     tier: 2,
   },

@@ -38,7 +38,10 @@ interface ChatInterfaceProps {
 }
 
 const WELCOME =
-  "Hello! I am an AI Agent powered by Kealu Vector to help you find health insurance and benefit programs for your household.\n\n I'll ask a few questions to understand your situation--no account info needed, and your information always stays private.\n\nLet's start with some basics. What is your zip code?";
+  'Hello! I am an AI Agent powered by Kealu Vector to help you find health insurance and benefit programs for your household.\n\n' +
+  'I\'ll ask a few questions to understand your situation — no account info needed, and your information always stays private.\n\n' +
+  'Let\'s start with some basics. What is your ZIP code?\n\n' +
+  '(Your ZIP code tells us which health plans, state programs, county services, clinics, and local assistance options are available where you live.)';
 
 const WELCOME_BACK =
   'Welcome back! Picking up where we left off.';
@@ -95,7 +98,7 @@ export default function ChatInterface({
       init.push({ id: uid(), role: 'assistant', content: WELCOME_BACK });
     }
 
-    if (initialNextQuestion) {
+    if (initialNextQuestion && initialMessages.length > 0) {
       const text = initialNextQuestion.rationale
         ? `${initialNextQuestion.prompt}\n\n${initialNextQuestion.rationale}`
         : initialNextQuestion.prompt;
