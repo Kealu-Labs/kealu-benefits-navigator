@@ -317,6 +317,10 @@ _TOOLS = [
 # Audit logging
 # ---------------------------------------------------------------------------
 
+# Session identity captured during the MCP initialize handshake, attached to
+# every audit event so actions can be attributed to a client/session.
+_SESSION: dict[str, str] = {"actor": "unknown", "session_id": "none"}
+
 
 def _audit_log(
     action: str,
@@ -334,6 +338,8 @@ def _audit_log(
         "resource": resource,
         "outcome": outcome,
         "correlation_id": correlation_id or "none",
+        "actor": _SESSION["actor"],
+        "session_id": _SESSION["session_id"],
     }
     if details:
         event["details"] = details
@@ -398,7 +404,7 @@ def _execute_tool(
             name,
             "error",
             correlation_id=corr_id,
-            details={"error": str(e)},
+            details={"error_type": type(e).__name__},
         )
         raise
 
@@ -1564,6 +1570,11 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
     params = request.get("params", {})
 
     if method == "initialize":
+        client = params.get("clientInfo") or {}
+        client_name = client.get("name") or "unknown"
+        client_version = client.get("version") or ""
+        _SESSION["actor"] = f"{client_name} {client_version}".strip()
+        _SESSION["session_id"] = uuid.uuid4().hex[:12]
         return _jsonrpc_result(
             req_id,
             {
