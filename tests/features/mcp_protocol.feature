@@ -54,8 +54,9 @@ Feature: MCP Protocol Compliance
 
   Scenario: Initialize captures session identity for audit attribution
     When the server receives an "initialize" request with clientInfo name "antigravity" version "1.2.3"
-    Then the session actor is "antigravity 1.2.3"
-    And the session id is populated
+    And an audit event is triggered by calling an unknown tool
+    Then the audit actor is "antigravity 1.2.3"
+    And the audit session id matches the 12-char hex format
 
   Scenario: Hostile clientInfo actor is sanitized in audit events
     When the server is initialized with a hostile clientInfo name

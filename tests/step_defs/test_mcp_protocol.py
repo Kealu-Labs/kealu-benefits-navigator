@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
+import re
 
 import pytest
 from pytest_bdd import parsers, scenario, then, when
 
-import benefits_navigator.mcp_server as mcp_mod
 from benefits_navigator.mcp_server import _execute_tool, _handle_request
 
 from ..conftest import _parse_audit_record
@@ -81,6 +81,7 @@ def test_ping():
     pass
 
 
+@pytest.mark.allow_log_output  # audit INFO lines are intentional; asserted via caplog
 @scenario(
     "../features/mcp_protocol.feature",
     "Initialize captures session identity for audit attribution",
@@ -277,14 +278,27 @@ def check_empty_result(ctx):
     assert ctx.response["result"] == {}
 
 
-@then(parsers.parse('the session actor is "{expected_actor}"'))
-def check_session_actor(expected_actor):
-    assert mcp_mod._SESSION["actor"] == expected_actor
+@then(parsers.parse('the audit actor is "{expected_actor}"'))
+def check_audit_actor_value(ctx, expected_actor):
+    actors = _get_audit_actors(ctx.audit_records)
+    assert actors, "No audit records with actor field found"
+    assert expected_actor in actors, (
+        f"Expected actor {expected_actor!r} not in {actors}"
+    )
 
 
-@then("the session id is populated")
-def check_session_id_populated():
-    assert mcp_mod._SESSION["session_id"] != "none"
+@then("the audit session id matches the 12-char hex format")
+def check_audit_session_id_shape(ctx):
+    session_ids = [
+        e["session_id"]
+        for e in _parse_audit_records(ctx.audit_records)
+        if "session_id" in e
+    ]
+    assert session_ids, "No audit records with session_id field found"
+    for sid in session_ids:
+        assert re.fullmatch(r"[0-9a-f]{12}", sid), (
+            f"session_id {sid!r} does not match ^[0-9a-f]{{12}}$"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -310,12 +324,12 @@ def trigger_audit_event(ctx, caplog):
     ctx.audit_records = list(caplog.records)
 
 
+def _parse_audit_records(records: list) -> list[dict]:
+    return [e for r in records if (e := _parse_audit_record(r)) is not None]
+
+
 def _get_audit_actors(records: list) -> list[str]:
-    return [
-        e["actor"]
-        for r in records
-        if (e := _parse_audit_record(r)) is not None and "actor" in e
-    ]
+    return [e["actor"] for e in _parse_audit_records(records) if "actor" in e]
 
 
 @then("the audit actor contains only printable characters")
