@@ -327,7 +327,9 @@ def check_actor_printable(ctx):
     )
     for actor in actors:
         for ch in actor:
-            assert ch.isprintable(), f"Non-printable character {ch!r} in actor {actor!r}"
+            assert ch.isprintable(), (
+                f"Non-printable character {ch!r} in actor {actor!r}"
+            )
 
 
 @then("the audit actor is at most 128 characters long")

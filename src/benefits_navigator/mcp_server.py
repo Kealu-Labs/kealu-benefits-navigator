@@ -60,13 +60,16 @@ _INCOME_PATTERNS = [
 # Constants
 # ---------------------------------------------------------------------------
 
+# Domain / household constants
 MAX_HOUSEHOLD_SIZE = 20
-_ID_LEN = 12
-_MAX_ACTOR_LEN = 128
 DEFAULT_ADULT_AGE = 30
 DEFAULT_CHILD_AGE = 8
 DEFAULT_INCOME = 30_000
 KVR_TIMEOUT = int(os.environ.get("KVR_TIMEOUT", "120"))
+
+# Audit / session-identity constants (used by _new_id and _sanitize_actor)
+_ID_LEN = 12
+_MAX_ACTOR_LEN = 128
 
 # ---------------------------------------------------------------------------
 # Tool definitions
@@ -1638,16 +1641,16 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
 
     # Unknown method — return error only if it has an id (not a notification).
     if req_id is not None:
-        return {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "error": {"code": -32601, "message": f"Unknown method: {method}"},
-        }
+        return _jsonrpc_error(req_id, -32601, f"Unknown method: {method}")
     return None
 
 
 def _jsonrpc_result(req_id: Any, result: Any) -> dict:
     return {"jsonrpc": "2.0", "id": req_id, "result": result}
+
+
+def _jsonrpc_error(req_id: Any, code: int, message: str) -> dict:
+    return {"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}
 
 
 # ---------------------------------------------------------------------------
@@ -1703,7 +1706,16 @@ def main() -> None:
             logger.warning("Malformed JSON: %s", line[:100])
             continue
 
-        response = _handle_request(request)
+        try:
+            response = _handle_request(request)
+        except Exception:
+            logger.exception("Unhandled error handling request")
+            req_id = request.get("id") if isinstance(request, dict) else None
+            response = (
+                _jsonrpc_error(req_id, -32603, "Internal error")
+                if req_id is not None
+                else None
+            )
         if response is not None:
             sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             sys.stdout.flush()

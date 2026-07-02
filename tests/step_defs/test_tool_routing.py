@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -316,8 +315,12 @@ def then_audit_no_pii(exc_ctx, pii_substring):
 @then("every audit event carries the session actor and session id")
 def then_audit_events_carry_actor_and_session(exc_ctx):
     events = [_parse_audit_record(r) for r in exc_ctx.audit_records]
-    tool_events = [e for e in events if e is not None and e.get("action") == "tool_call"]
-    assert tool_events, f"No tool_call audit events found; records: {exc_ctx.audit_text!r}"
+    tool_events = [
+        e for e in events if e is not None and e.get("action") == "tool_call"
+    ]
+    assert tool_events, (
+        f"No tool_call audit events found; records: {exc_ctx.audit_text!r}"
+    )
     expected_actor = mcp_mod._SESSION["actor"]
     expected_session_id = mcp_mod._SESSION["session_id"]
     for event in tool_events:

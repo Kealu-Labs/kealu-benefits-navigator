@@ -16,7 +16,7 @@ def _parse_audit_record(record) -> dict | None:
     if not msg.startswith("AUDIT "):
         return None
     try:
-        return json.loads(msg[len("AUDIT "):])
+        return json.loads(msg[len("AUDIT ") :])
     except json.JSONDecodeError:
         return None
 
