@@ -127,6 +127,18 @@ def given_medicaid_output(ctx):
     ctx.args["workflow_output"] = ctx.workflow_output
 
 
+@given("generic workflow output")
+def given_generic_output(ctx):
+    ctx.workflow_output = (
+        "## Eligibility Results\n"
+        "- Program A: ELIGIBLE\n"
+        "### Required Documents\n"
+        "- Proof of income\n"
+        "- Proof of residency\n"
+    )
+    ctx.args["workflow_output"] = ctx.workflow_output
+
+
 @given("no workflow output is provided")
 def given_no_output(ctx):
     ctx.args["workflow_output"] = ""
