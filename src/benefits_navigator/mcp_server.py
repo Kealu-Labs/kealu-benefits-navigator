@@ -1593,7 +1593,9 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
     params = request.get("params", {})
 
     if method == "initialize":
-        client = params.get("clientInfo") or {}
+        client = params.get("clientInfo")
+        if not isinstance(client, dict):
+            client = {}
         client_name = client.get("name") or "unknown"
         client_version = client.get("version") or ""
         _SESSION["actor"] = (

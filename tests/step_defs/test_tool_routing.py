@@ -313,3 +313,19 @@ def then_audit_no_pii(exc_ctx, pii_substring):
     )
 
 
+@then("every audit event carries the session actor and session id")
+def then_audit_events_carry_actor_and_session(exc_ctx):
+    events = [_parse_audit_record(r) for r in exc_ctx.audit_records]
+    tool_events = [e for e in events if e is not None and e.get("action") == "tool_call"]
+    assert tool_events, f"No tool_call audit events found; records: {exc_ctx.audit_text!r}"
+    expected_actor = mcp_mod._SESSION["actor"]
+    expected_session_id = mcp_mod._SESSION["session_id"]
+    for event in tool_events:
+        assert "actor" in event, f"Audit event missing 'actor': {event}"
+        assert "session_id" in event, f"Audit event missing 'session_id': {event}"
+        assert event["actor"] == expected_actor, (
+            f"Expected actor={expected_actor!r}, got {event['actor']!r}"
+        )
+        assert event["session_id"] == expected_session_id, (
+            f"Expected session_id={expected_session_id!r}, got {event['session_id']!r}"
+        )

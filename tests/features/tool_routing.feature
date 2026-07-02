@@ -53,3 +53,4 @@ Feature: Tool Execution and Routing
     Then the exception propagates
     And the audit log records error_type "ValueError"
     And the audit log does not contain "123-45-6789"
+    And every audit event carries the session actor and session id
