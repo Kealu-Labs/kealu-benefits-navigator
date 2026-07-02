@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
+import benefits_navigator.mcp_server as mcp_mod
 from benefits_navigator.mcp_server import _execute_tool
 
 from ..conftest import DEMO_PROFILE
@@ -56,6 +60,15 @@ def test_compare_plans():
 
 @scenario("../features/tool_routing.feature", "Unknown tool returns error message")
 def test_unknown_tool():
+    pass
+
+
+@pytest.mark.allow_log_output  # audit INFO lines are intentional; asserted via caplog
+@scenario(
+    "../features/tool_routing.feature",
+    "Tool handler exception is audited without leaking the message",
+)
+def test_exception_audit_no_pii():
     pass
 
 
@@ -230,3 +243,81 @@ def check_task_includes(ctx, text):
 @then(parsers.parse('the result contains "{text}"'))
 def check_result_contains(ctx, text):
     assert text in ctx.result, f"Expected '{text}' in result: {ctx.result}"
+
+
+# ---------------------------------------------------------------------------
+# Exception-audit scenario context and steps
+# ---------------------------------------------------------------------------
+
+
+class ExceptionAuditContext:
+    def __init__(self):
+        self.tool_name: str = "_test_pii_tool"
+        self.error_message: str = ""
+        self.raised: BaseException | None = None
+        self.audit_records: list = []
+        self.audit_text: str = ""
+
+
+@given(
+    parsers.parse('a registered tool whose handler raises "{error_message}"'),
+    target_fixture="exc_ctx",
+)
+def given_raising_handler(error_message, monkeypatch):
+    ctx = ExceptionAuditContext()
+    ctx.error_message = error_message
+
+    def _raising_handler(args, *, progress_token=None):
+        raise ValueError(error_message)
+
+    monkeypatch.setitem(mcp_mod._TOOL_DISPATCH, ctx.tool_name, _raising_handler)
+    return ctx
+
+
+@when("the registered tool is executed and raises")
+def when_tool_raises(exc_ctx, caplog):
+    with caplog.at_level(logging.INFO, logger="benefits_navigator.mcp_server"):
+        with pytest.raises(ValueError) as exc_info:
+            _execute_tool(exc_ctx.tool_name, {})
+    exc_ctx.raised = exc_info.value
+    exc_ctx.audit_records = list(caplog.records)
+    exc_ctx.audit_text = caplog.text
+
+
+@then("the exception propagates")
+def then_exception_propagates(exc_ctx):
+    assert exc_ctx.raised is not None
+    assert isinstance(exc_ctx.raised, ValueError)
+
+
+@then(parsers.parse('the audit log records error_type "{expected_error_type}"'))
+def then_audit_records_error_type(exc_ctx, expected_error_type):
+    events = [_parse_audit_record(r) for r in exc_ctx.audit_records]
+    matching = [
+        e
+        for e in events
+        if e is not None
+        and e.get("outcome") == "error"
+        and e.get("details", {}).get("error_type") == expected_error_type
+    ]
+    assert matching, (
+        f"No audit event with error_type={expected_error_type!r}; "
+        f"records: {exc_ctx.audit_text!r}"
+    )
+
+
+@then(parsers.parse('the audit log does not contain "{pii_substring}"'))
+def then_audit_no_pii(exc_ctx, pii_substring):
+    assert pii_substring not in exc_ctx.audit_text, (
+        f"PII substring {pii_substring!r} unexpectedly found in audit log"
+    )
+
+
+def _parse_audit_record(record) -> dict | None:
+    msg = record.getMessage()
+    if not msg.startswith("AUDIT "):
+        return None
+    try:
+        return json.loads(msg[len("AUDIT ") :])
+    except json.JSONDecodeError:
+        return None

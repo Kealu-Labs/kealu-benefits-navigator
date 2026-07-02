@@ -46,3 +46,10 @@ Feature: Tool Execution and Routing
   Scenario: Unknown tool returns error message
     When an unknown tool "nonexistent_tool" is executed
     Then the result contains "Unknown tool"
+
+  Scenario: Tool handler exception is audited without leaking the message
+    Given a registered tool whose handler raises "SSN 123-45-6789 invalid"
+    When the registered tool is executed and raises
+    Then the exception propagates
+    And the audit log records error_type "ValueError"
+    And the audit log does not contain "123-45-6789"
