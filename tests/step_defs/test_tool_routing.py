@@ -13,7 +13,7 @@ from pytest_bdd import given, parsers, scenario, then, when
 import benefits_navigator.mcp_server as mcp_mod
 from benefits_navigator.mcp_server import _execute_tool
 
-from ..conftest import DEMO_PROFILE
+from ..conftest import DEMO_PROFILE, _parse_audit_record
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -313,11 +313,3 @@ def then_audit_no_pii(exc_ctx, pii_substring):
     )
 
 
-def _parse_audit_record(record) -> dict | None:
-    msg = record.getMessage()
-    if not msg.startswith("AUDIT "):
-        return None
-    try:
-        return json.loads(msg[len("AUDIT ") :])
-    except json.JSONDecodeError:
-        return None

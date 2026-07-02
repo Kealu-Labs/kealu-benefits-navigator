@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
+import pytest
 from pytest_bdd import parsers, scenario, then, when
 
 import benefits_navigator.mcp_server as mcp_mod
-from benefits_navigator.mcp_server import _handle_request
+from benefits_navigator.mcp_server import _execute_tool, _handle_request
+
+from ..conftest import _parse_audit_record
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -84,6 +89,15 @@ def test_initialize_session_identity():
     pass
 
 
+@pytest.mark.allow_log_output  # audit INFO lines are intentional; asserted via caplog
+@scenario(
+    "../features/mcp_protocol.feature",
+    "Hostile clientInfo actor is sanitized in audit events",
+)
+def test_hostile_clientinfo_sanitized():
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Context
 # ---------------------------------------------------------------------------
@@ -93,6 +107,7 @@ class McpContext:
     def __init__(self):
         self.response: dict | None = None
         self.tools: list[dict] = []
+        self.audit_records: list = []
 
 
 def _send(method, req_id=None, params=None):
@@ -270,3 +285,54 @@ def check_session_actor(expected_actor):
 @then("the session id is populated")
 def check_session_id_populated():
     assert mcp_mod._SESSION["session_id"] != "none"
+
+
+# ---------------------------------------------------------------------------
+# Hostile clientInfo sanitization scenario
+# ---------------------------------------------------------------------------
+
+
+@when("the server is initialized with a hostile clientInfo name", target_fixture="ctx")
+def send_hostile_initialize():
+    # Build hostile name in code — control chars cannot be written in Gherkin
+    hostile_name = "evil\r\nlog\x00inject\t" + "A" * 200
+    return _send(
+        "initialize",
+        req_id=1,
+        params={"clientInfo": {"name": hostile_name, "version": "1.0"}},
+    )
+
+
+@when("an audit event is triggered by calling an unknown tool")
+def trigger_audit_event(ctx, caplog):
+    with caplog.at_level(logging.INFO, logger="benefits_navigator.mcp_server"):
+        _execute_tool("_probe", {})
+    ctx.audit_records = list(caplog.records)
+
+
+def _get_audit_actors(records: list) -> list[str]:
+    return [
+        e["actor"]
+        for r in records
+        if (e := _parse_audit_record(r)) is not None and "actor" in e
+    ]
+
+
+@then("the audit actor contains only printable characters")
+def check_actor_printable(ctx):
+    actors = _get_audit_actors(ctx.audit_records)
+    assert actors, (
+        f"No audit records with actor field found; records: "
+        f"{[r.getMessage() for r in ctx.audit_records]}"
+    )
+    for actor in actors:
+        for ch in actor:
+            assert ch.isprintable(), f"Non-printable character {ch!r} in actor {actor!r}"
+
+
+@then("the audit actor is at most 128 characters long")
+def check_actor_length(ctx):
+    actors = _get_audit_actors(ctx.audit_records)
+    assert actors, "No audit records with actor field found"
+    for actor in actors:
+        assert len(actor) <= 128, f"Actor length {len(actor)} exceeds 128: {actor!r}"

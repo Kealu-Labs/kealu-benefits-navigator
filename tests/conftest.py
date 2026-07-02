@@ -10,6 +10,17 @@ import pytest
 import benefits_navigator.mcp_server as mcp_mod
 
 
+def _parse_audit_record(record) -> dict | None:
+    """Parse a log record as an audit event; returns the dict or None."""
+    msg = record.getMessage()
+    if not msg.startswith("AUDIT "):
+        return None
+    try:
+        return json.loads(msg[len("AUDIT "):])
+    except json.JSONDecodeError:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Demo household profile — single parent, Harris County TX
 # ---------------------------------------------------------------------------
