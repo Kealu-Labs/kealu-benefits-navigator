@@ -61,6 +61,8 @@ _INCOME_PATTERNS = [
 # ---------------------------------------------------------------------------
 
 MAX_HOUSEHOLD_SIZE = 20
+_ID_LEN = 12
+_MAX_ACTOR_LEN = 128
 DEFAULT_ADULT_AGE = 30
 DEFAULT_CHILD_AGE = 8
 DEFAULT_INCOME = 30_000
@@ -314,11 +316,32 @@ _TOOLS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Utility helpers
+# ---------------------------------------------------------------------------
+
+
+def _new_id(length: int = _ID_LEN) -> str:
+    """Return a short random hex id (truncated uuid4)."""
+    return uuid.uuid4().hex[:length]
+
+
+def _sanitize_actor(text: str) -> str:
+    """Strip control chars (incl. CR/LF), collapse whitespace, bound length."""
+    cleaned = "".join(ch for ch in text if ch.isprintable())
+    cleaned = " ".join(cleaned.split())
+    return cleaned[:_MAX_ACTOR_LEN]
+
+
+# ---------------------------------------------------------------------------
 # Audit logging
 # ---------------------------------------------------------------------------
 
 # Session identity captured during the MCP initialize handshake, attached to
 # every audit event so actions can be attributed to a client/session.
+# _SESSION is written exactly once — during the single-threaded ``initialize``
+# handshake — and is thereafter read-only for the lifetime of the process.
+# Because ``main()`` processes stdin messages serially in a single loop
+# (see the ``for line in sys.stdin`` loop), no lock is required.
 _SESSION: dict[str, str] = {"actor": "unknown", "session_id": "none"}
 
 
@@ -376,7 +399,7 @@ def _execute_tool(
 
     Returns the workflow output as a string.
     """
-    corr_id = uuid.uuid4().hex[:12]
+    corr_id = _new_id()
     _audit_log(
         "tool_call",
         name,
@@ -734,7 +757,7 @@ def _run_benefits_navigator(
     """Run the full benefits-navigator workflow with optional progress streaming."""
     try:
         kvr = _resolve_kvr()
-        run_id = f"mcp-navigator-{uuid.uuid4().hex[:8]}"
+        run_id = f"mcp-navigator-{_new_id(8)}"
 
         cmd = [
             kvr,
@@ -1573,8 +1596,10 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
         client = params.get("clientInfo") or {}
         client_name = client.get("name") or "unknown"
         client_version = client.get("version") or ""
-        _SESSION["actor"] = f"{client_name} {client_version}".strip()
-        _SESSION["session_id"] = uuid.uuid4().hex[:12]
+        _SESSION["actor"] = (
+            _sanitize_actor(f"{client_name} {client_version}") or "unknown"
+        )
+        _SESSION["session_id"] = _new_id()
         return _jsonrpc_result(
             req_id,
             {
