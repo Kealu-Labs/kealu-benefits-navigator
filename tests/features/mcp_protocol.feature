@@ -51,3 +51,8 @@ Feature: MCP Protocol Compliance
   Scenario: Ping returns empty result
     When the server receives a "ping" request with id 42
     Then the response result is empty
+
+  Scenario: Initialize captures session identity for audit attribution
+    When the server receives an "initialize" request with clientInfo name "antigravity" version "1.2.3"
+    Then the session actor is "antigravity 1.2.3"
+    And the session id is populated

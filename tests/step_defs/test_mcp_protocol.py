@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pytest_bdd import parsers, scenario, then, when
 
+import benefits_navigator.mcp_server as mcp_mod
 from benefits_navigator.mcp_server import _handle_request
 
 # ---------------------------------------------------------------------------
@@ -72,6 +73,14 @@ def test_unknown_method_silent():
 
 @scenario("../features/mcp_protocol.feature", "Ping returns empty result")
 def test_ping():
+    pass
+
+
+@scenario(
+    "../features/mcp_protocol.feature",
+    "Initialize captures session identity for audit attribution",
+)
+def test_initialize_session_identity():
     pass
 
 
@@ -164,6 +173,20 @@ def send_unknown_without_id(method):
     return _send(method)
 
 
+@when(
+    parsers.re(
+        r'the server receives an "initialize" request with clientInfo name "(?P<client_name>[^"]+)" version "(?P<client_version>[^"]+)"'
+    ),
+    target_fixture="ctx",
+)
+def send_initialize_with_client_info(client_name, client_version):
+    return _send(
+        "initialize",
+        req_id=1,
+        params={"clientInfo": {"name": client_name, "version": client_version}},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Then steps
 # ---------------------------------------------------------------------------
@@ -237,3 +260,13 @@ def check_error_code(ctx, code):
 def check_empty_result(ctx):
     assert ctx.response is not None
     assert ctx.response["result"] == {}
+
+
+@then(parsers.parse('the session actor is "{expected_actor}"'))
+def check_session_actor(expected_actor):
+    assert mcp_mod._SESSION["actor"] == expected_actor
+
+
+@then("the session id is populated")
+def check_session_id_populated():
+    assert mcp_mod._SESSION["session_id"] != "none"
