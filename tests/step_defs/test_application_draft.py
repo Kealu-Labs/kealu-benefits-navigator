@@ -44,6 +44,14 @@ def test_household_details():
     pass
 
 
+@scenario(
+    "../features/application_draft.feature",
+    "SSN field is left blank for the applicant to complete",
+)
+def test_ssn_blank_field():
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Context
 # ---------------------------------------------------------------------------
@@ -201,6 +209,9 @@ def check_missing_output_message(ctx):
 
 @then(parsers.parse('the PDF text contains "{text}"'))
 def check_pdf_contains(ctx, text):
-    # PDF text content is in stream objects — search raw bytes
+    # Decoding as latin-1 and substring-searching the raw bytes works only because
+    # pdf_generator emits uncompressed content streams.  If FlateDecode (or any other
+    # stream filter) is ever added, this search will silently stop matching and the
+    # step must be rewritten to use a real PDF text extractor (e.g. pdfminer/pypdf).
     pdf_str = ctx.pdf_bytes.decode("latin-1", errors="replace")
     assert text in pdf_str, f"Expected '{text}' in PDF content"
