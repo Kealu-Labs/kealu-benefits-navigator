@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -10,7 +11,7 @@ import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 import benefits_navigator.mcp_server as mcp_mod
-from benefits_navigator.mcp_server import _execute_tool
+from benefits_navigator.mcp_server import _execute_tool, _handle_request
 
 from ..conftest import DEMO_PROFILE, _parse_audit_record
 
@@ -273,6 +274,20 @@ def given_raising_handler(error_message, monkeypatch):
     return ctx
 
 
+@given(
+    parsers.parse('the session is initialized as client "{name}" version "{version}"'),
+)
+def given_session_initialized(name, version):
+    _handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"clientInfo": {"name": name, "version": version}},
+        }
+    )
+
+
 @when("the registered tool is executed and raises")
 def when_tool_raises(exc_ctx, caplog):
     with caplog.at_level(logging.INFO, logger="benefits_navigator.mcp_server"):
@@ -312,8 +327,12 @@ def then_audit_no_pii(exc_ctx, pii_substring):
     )
 
 
-@then("every audit event carries the session actor and session id")
-def then_audit_events_carry_actor_and_session(exc_ctx):
+@then(
+    parsers.parse(
+        'every audit event carries actor "{expected_actor}" and a real session id'
+    )
+)
+def then_audit_events_carry_actor_and_session(exc_ctx, expected_actor):
     events = [_parse_audit_record(r) for r in exc_ctx.audit_records]
     tool_events = [
         e for e in events if e is not None and e.get("action") == "tool_call"
@@ -321,14 +340,27 @@ def then_audit_events_carry_actor_and_session(exc_ctx):
     assert tool_events, (
         f"No tool_call audit events found; records: {exc_ctx.audit_text!r}"
     )
-    expected_actor = mcp_mod._SESSION["actor"]
-    expected_session_id = mcp_mod._SESSION["session_id"]
     for event in tool_events:
         assert "actor" in event, f"Audit event missing 'actor': {event}"
         assert "session_id" in event, f"Audit event missing 'session_id': {event}"
         assert event["actor"] == expected_actor, (
             f"Expected actor={expected_actor!r}, got {event['actor']!r}"
         )
-        assert event["session_id"] == expected_session_id, (
-            f"Expected session_id={expected_session_id!r}, got {event['session_id']!r}"
+        assert event["session_id"] != "none", (
+            "Expected a real session_id, got 'none' — session was not initialized"
         )
+        assert re.fullmatch(r"[0-9a-f]{12}", event["session_id"]), (
+            f"session_id {event['session_id']!r} does not match [0-9a-f]{{12}}"
+        )
+
+
+@then('kvr was invoked with a run-id matching "mcp-navigator-" plus 8 hex chars')
+def check_run_id_shape(ctx):
+    for i, arg in enumerate(ctx.kvr_cmd):
+        if arg == "--run-id" and i + 1 < len(ctx.kvr_cmd):
+            value = ctx.kvr_cmd[i + 1]
+            assert re.fullmatch(r"mcp-navigator-[0-9a-f]{8}", value), (
+                f"run-id {value!r} does not match mcp-navigator-[0-9a-f]{{8}}"
+            )
+            return
+    raise AssertionError(f"--run-id not found in kvr command: {ctx.kvr_cmd}")

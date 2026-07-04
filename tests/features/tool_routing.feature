@@ -7,6 +7,7 @@ Feature: Tool Execution and Routing
     When navigate_benefits is executed with mocked kvr
     Then kvr was invoked with workflow "benefits-navigator"
     And kvr was invoked with "--mode" "automated"
+    And kvr was invoked with a run-id matching "mcp-navigator-" plus 8 hex chars
 
   Scenario: Workflow variables are passed through to kvr
     Given a complete demo profile with skip_intake
@@ -49,8 +50,9 @@ Feature: Tool Execution and Routing
 
   Scenario: Tool handler exception is audited without leaking the message
     Given a registered tool whose handler raises "SSN 123-45-6789 invalid"
+    And the session is initialized as client "audit-probe" version "9.9.9"
     When the registered tool is executed and raises
     Then the exception propagates
     And the audit log records error_type "ValueError"
     And the audit log does not contain "123-45-6789"
-    And every audit event carries the session actor and session id
+    And every audit event carries actor "audit-probe 9.9.9" and a real session id
