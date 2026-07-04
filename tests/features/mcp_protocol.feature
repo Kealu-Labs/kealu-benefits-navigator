@@ -63,6 +63,7 @@ Feature: MCP Protocol Compliance
     And an audit event is triggered by calling an unknown tool
     Then the audit actor contains only printable characters
     And the audit actor is at most 128 characters long
+    And the audit actor preserves the printable substring "evilloginject"
 
   Scenario: Tool call before initialize logs a pre-initialization warning
     Given the session has not been initialized

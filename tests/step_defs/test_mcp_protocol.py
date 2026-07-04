@@ -13,7 +13,7 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.mcp_server import _execute_tool, _handle_request
 
-from ..conftest import _parse_audit_record
+from ..conftest import _parse_audit_records
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -382,10 +382,6 @@ def trigger_audit_event(ctx, caplog):
     ctx.audit_records = list(caplog.records)
 
 
-def _parse_audit_records(records: list) -> list[dict]:
-    return [e for r in records if (e := _parse_audit_record(r)) is not None]
-
-
 def _get_audit_actors(records: list) -> list[str]:
     return [e["actor"] for e in _parse_audit_records(records) if "actor" in e]
 
@@ -410,6 +406,16 @@ def check_actor_length(ctx):
     assert actors, "No audit records with actor field found"
     for actor in actors:
         assert len(actor) <= 128, f"Actor length {len(actor)} exceeds 128: {actor!r}"
+
+
+@then(parsers.parse('the audit actor preserves the printable substring "{substring}"'))
+def check_actor_preserves_substring(ctx, substring):
+    actors = _get_audit_actors(ctx.audit_records)
+    assert actors, "No audit records with actor field found"
+    for actor in actors:
+        assert substring in actor, (
+            f"Expected {substring!r} preserved in actor {actor!r}"
+        )
 
 
 @then("a pre-initialization warning is logged")

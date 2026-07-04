@@ -21,6 +21,11 @@ def _parse_audit_record(record) -> dict | None:
         return None
 
 
+def _parse_audit_records(records: list) -> list[dict]:
+    """Parse a list of log records into audit-event dicts, skipping non-audit lines."""
+    return [e for r in records if (e := _parse_audit_record(r)) is not None]
+
+
 # ---------------------------------------------------------------------------
 # Demo household profile — single parent, Harris County TX
 # ---------------------------------------------------------------------------
