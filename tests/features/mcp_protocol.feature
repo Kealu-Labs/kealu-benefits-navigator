@@ -63,3 +63,17 @@ Feature: MCP Protocol Compliance
     And an audit event is triggered by calling an unknown tool
     Then the audit actor contains only printable characters
     And the audit actor is at most 128 characters long
+
+  Scenario Outline: Non-dict clientInfo does not crash the initialize handler
+    When the server receives an "initialize" request with a non-dict clientInfo of type "<kind>"
+    And an audit event is triggered by calling an unknown tool
+    Then the response includes serverInfo name "benefits-navigator"
+    And the audit actor is "unknown"
+
+    Examples:
+      | kind    |
+      | string  |
+      | list    |
+      | integer |
+      | null    |
+      | boolean |

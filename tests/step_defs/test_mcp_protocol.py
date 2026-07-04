@@ -99,6 +99,15 @@ def test_hostile_clientinfo_sanitized():
     pass
 
 
+@pytest.mark.allow_log_output  # audit INFO lines are intentional; asserted via caplog
+@scenario(
+    "../features/mcp_protocol.feature",
+    "Non-dict clientInfo does not crash the initialize handler",
+)
+def test_non_dict_clientinfo_no_crash():
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Context
 # ---------------------------------------------------------------------------
@@ -299,6 +308,30 @@ def check_audit_session_id_shape(ctx):
         assert re.fullmatch(r"[0-9a-f]{12}", sid), (
             f"session_id {sid!r} does not match ^[0-9a-f]{{12}}$"
         )
+
+
+# ---------------------------------------------------------------------------
+# Non-dict clientInfo regression scenario
+# ---------------------------------------------------------------------------
+
+_NON_DICT_CLIENTINFO = {
+    "string": "malicious-client",
+    "list": [],
+    "integer": 5,
+    "null": None,
+    "boolean": True,
+}
+
+
+@when(
+    parsers.re(
+        r'the server receives an "initialize" request with a non-dict '
+        r'clientInfo of type "(?P<kind>[^"]+)"'
+    ),
+    target_fixture="ctx",
+)
+def send_initialize_non_dict_clientinfo(kind):
+    return _send("initialize", req_id=1, params={"clientInfo": _NON_DICT_CLIENTINFO[kind]})
 
 
 # ---------------------------------------------------------------------------
