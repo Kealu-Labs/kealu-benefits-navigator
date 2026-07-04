@@ -9,7 +9,7 @@ import re
 
 import benefits_navigator.mcp_server as mcp_mod
 import pytest
-from pytest_bdd import parsers, scenario, then, when
+from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.mcp_server import _execute_tool, _handle_request
 
@@ -111,6 +111,15 @@ def test_non_dict_clientinfo_no_crash():
     pass
 
 
+@pytest.mark.allow_log_output  # WARNING about pre-init tool call is intentional; asserted below
+@scenario(
+    "../features/mcp_protocol.feature",
+    "Tool call before initialize logs a pre-initialization warning",
+)
+def test_tool_call_before_initialize_warns():
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Context
 # ---------------------------------------------------------------------------
@@ -136,6 +145,17 @@ def _send(method, req_id=None, params=None):
     ):
         ctx.tools = ctx.response["result"]["tools"]
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# Given steps
+# ---------------------------------------------------------------------------
+
+
+@given("the session has not been initialized", target_fixture="ctx")
+def session_not_initialized():
+    # _reset_mcp_session autouse fixture ensures session_id == "none"
+    return McpContext()
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +410,19 @@ def check_actor_length(ctx):
     assert actors, "No audit records with actor field found"
     for actor in actors:
         assert len(actor) <= 128, f"Actor length {len(actor)} exceeds 128: {actor!r}"
+
+
+@then("a pre-initialization warning is logged")
+def check_pre_init_warning(ctx):
+    warnings = [
+        r
+        for r in ctx.audit_records
+        if r.levelno >= logging.WARNING and "before initialize" in r.getMessage()
+    ]
+    assert warnings, (
+        f"No WARNING record mentioning 'before initialize' found; "
+        f"records: {[r.getMessage() for r in ctx.audit_records]}"
+    )
 
 
 # ---------------------------------------------------------------------------

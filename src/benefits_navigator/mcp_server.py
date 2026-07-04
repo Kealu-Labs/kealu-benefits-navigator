@@ -369,6 +369,10 @@ def _audit_log(
     }
     if details:
         event["details"] = details
+    # json.dumps defaults to ensure_ascii=True, which escapes bidi/homoglyph and
+    # other non-ASCII control characters to \uXXXX sequences.  Combined with
+    # _sanitize_actor stripping non-printables, this neutralises terminal/log
+    # injection.  Do NOT switch to ensure_ascii=False without a replacement guard.
     logger.info("AUDIT %s", json.dumps(event, default=str))
 
 
@@ -403,6 +407,12 @@ def _execute_tool(
     Returns the workflow output as a string.
     """
     corr_id = _new_id()
+    if _SESSION["session_id"] == "none":
+        logger.warning(
+            "Tool %r invoked before initialize handshake — audit events will "
+            "carry session_id 'none' and actor 'unknown'",
+            name,
+        )
     _audit_log(
         "tool_call",
         name,

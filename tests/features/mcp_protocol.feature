@@ -64,6 +64,11 @@ Feature: MCP Protocol Compliance
     Then the audit actor contains only printable characters
     And the audit actor is at most 128 characters long
 
+  Scenario: Tool call before initialize logs a pre-initialization warning
+    Given the session has not been initialized
+    When an audit event is triggered by calling an unknown tool
+    Then a pre-initialization warning is logged
+
   Scenario Outline: Non-dict clientInfo does not crash the initialize handler
     When the server receives an "initialize" request with a non-dict clientInfo of type "<kind>"
     And an audit event is triggered by calling an unknown tool
