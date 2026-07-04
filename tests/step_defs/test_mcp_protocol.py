@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import io
+import json
 import logging
 import re
 
+import benefits_navigator.mcp_server as mcp_mod
 import pytest
 from pytest_bdd import parsers, scenario, then, when
 
@@ -331,7 +334,9 @@ _NON_DICT_CLIENTINFO = {
     target_fixture="ctx",
 )
 def send_initialize_non_dict_clientinfo(kind):
-    return _send("initialize", req_id=1, params={"clientInfo": _NON_DICT_CLIENTINFO[kind]})
+    return _send(
+        "initialize", req_id=1, params={"clientInfo": _NON_DICT_CLIENTINFO[kind]}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -385,3 +390,37 @@ def check_actor_length(ctx):
     assert actors, "No audit records with actor field found"
     for actor in actors:
         assert len(actor) <= 128, f"Actor length {len(actor)} exceeds 128: {actor!r}"
+
+
+# ---------------------------------------------------------------------------
+# Dispatch-loop isolation tests (main() error handling)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.allow_log_output
+def test_main_isolates_handler_error_as_jsonrpc_internal_error(monkeypatch, capsys):
+    def _boom(_request):
+        raise RuntimeError("handler exploded")
+
+    monkeypatch.setattr(mcp_mod, "_handle_request", _boom)
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO('{"jsonrpc":"2.0","id":7,"method":"tools/list"}\n')
+    )
+    mcp_mod.main()
+    out = capsys.readouterr().out.strip()
+    response = json.loads(out)
+    assert response["id"] == 7
+    assert response["error"]["code"] == -32603
+
+
+@pytest.mark.allow_log_output
+def test_main_swallows_handler_error_for_notification_without_id(monkeypatch, capsys):
+    def _boom(_request):
+        raise RuntimeError("handler exploded")
+
+    monkeypatch.setattr(mcp_mod, "_handle_request", _boom)
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO('{"jsonrpc":"2.0","method":"tools/list"}\n')
+    )
+    mcp_mod.main()
+    assert capsys.readouterr().out.strip() == ""
