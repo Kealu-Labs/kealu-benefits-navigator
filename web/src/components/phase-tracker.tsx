@@ -7,25 +7,28 @@
 
 import { useEffect, useRef, useState } from 'react';
 import ErrorBanner from './error-banner';
+import { useTranslation } from '@/hooks/use-translation';
 import type { ReportPayload } from '@/lib/report-assembler';
+import type { Messages } from '@/i18n';
 
 const PHASES = [
-  { key: 'benefits-research', label: 'Benefits Research' },
-  { key: 'insurance-research', label: 'Insurance Research' },
-  { key: 'evidence-verification', label: 'Evidence Verification' },
-  { key: 'eligibility-validation', label: 'Eligibility Validation' },
-  { key: 'action-plan', label: 'Action Plan' },
-] as const;
+  { key: 'benefits-research', labelKey: 'phase_benefits_research' },
+  { key: 'insurance-research', labelKey: 'phase_insurance_research' },
+  { key: 'evidence-verification', labelKey: 'phase_evidence_verification' },
+  { key: 'eligibility-validation', labelKey: 'phase_eligibility_validation' },
+  { key: 'action-plan', labelKey: 'phase_action_plan' },
+] as const satisfies Array<{ key: string; labelKey: keyof Messages }>;
 
 type PhaseKey = (typeof PHASES)[number]['key'];
 type PhaseStatus = 'idle' | 'running' | 'rerunning' | 'complete' | 'error';
 
-const STATUS_LABEL: Record<PhaseStatus, string> = {
-  idle: 'Waiting',
-  running: 'Running…',
-  rerunning: 'Re-checking…',
-  complete: 'Complete',
-  error: 'Error',
+/** Map PhaseStatus values to their translation keys. */
+const STATUS_KEYS: Record<PhaseStatus, keyof Messages> = {
+  idle: 'phase_status_idle',
+  running: 'phase_status_running',
+  rerunning: 'phase_status_rerunning',
+  complete: 'phase_status_complete',
+  error: 'phase_status_error',
 };
 
 /**
@@ -95,6 +98,8 @@ interface PhaseTrackerProps {
  * - On action-plan complete, fetches /api/workflow/{runId}/report and calls onComplete.
  */
 export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: PhaseTrackerProps) {
+  const { t } = useTranslation();
+
   const initialStatus = () =>
     Object.fromEntries(PHASES.map((p) => [p.key, 'idle'])) as Record<PhaseKey, PhaseStatus>;
 
@@ -178,7 +183,7 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
   );
   useEffect(() => {
     if (!anyRunning) return;
-    const id = setInterval(() => setTick((t) => t + 1), 500);
+    const id = setInterval(() => setTick((tick) => tick + 1), 500);
     return () => clearInterval(id);
   }, [anyRunning]);
 
@@ -282,9 +287,9 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Analyzing your household…</h2>
+          <h2 className="text-lg font-semibold text-slate-800">{t('phase_analyzing')}</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            A 5-phase AI workflow is running. This typically takes 5–15 minutes.
+            {t('phase_description')}
           </p>
         </div>
         {!error && (
@@ -294,7 +299,7 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
             disabled={stopping}
             className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-slate-300 transition-colors"
           >
-            {stopping ? 'Stopping…' : 'Stop & edit'}
+            {stopping ? t('phase_stopping') : t('phase_stop_edit')}
           </button>
         )}
       </div>
@@ -310,7 +315,11 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
                 </span>
               )}
-              {percent >= 100 ? 'Finalizing…' : anyRunning ? 'Running' : 'Starting…'}
+              {percent >= 100
+                ? t('phase_finalizing')
+                : anyRunning
+                  ? t('phase_running_label')
+                  : t('phase_starting')}
             </span>
             <span className="tabular-nums text-slate-600">{percent}%</span>
           </div>
@@ -320,7 +329,7 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
             aria-valuenow={percent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label="Overall analysis progress"
+            aria-label={t('phase_progress_aria')}
           >
             <div
               className="h-full rounded-full bg-blue-500 transition-[width] duration-500 ease-out"
@@ -333,14 +342,23 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
       {/* Parallel phases (1+2) */}
       <div className="grid grid-cols-2 gap-3">
         {parallelPhases.map((phase) => (
-          <PhaseTile key={phase.key} label={phase.label} status={phaseStatus[phase.key]} />
+          <PhaseTile
+            key={phase.key}
+            label={t(phase.labelKey)}
+            status={phaseStatus[phase.key]}
+          />
         ))}
       </div>
 
       {/* Sequential phases (3–5) */}
       <div className="space-y-2">
         {sequentialPhases.map((phase) => (
-          <PhaseTile key={phase.key} label={phase.label} status={phaseStatus[phase.key]} wide />
+          <PhaseTile
+            key={phase.key}
+            label={t(phase.labelKey)}
+            status={phaseStatus[phase.key]}
+            wide
+          />
         ))}
       </div>
 
@@ -350,7 +368,6 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
           correlationId={runId}
           onRetry={() => void handleRetry()}
           onSecondary={onEdit}
-          secondaryLabel="Edit my information"
         />
       )}
     </div>
@@ -360,7 +377,7 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
 /**
  * PhaseTile — renders a single phase card with status indicator and animated progress stripe.
  *
- * @param label  - Human-readable phase name shown as the card title.
+ * @param label  - Human-readable phase name (already translated by the caller).
  * @param status - Current phase status; drives color scheme and progress animation.
  * @param wide   - When true, the card spans its full container width (used for sequential phases).
  */
@@ -373,6 +390,7 @@ function PhaseTile({
   status: PhaseStatus;
   wide?: boolean;
 }) {
+  const { t } = useTranslation();
   // Show the animated progress stripe for any actively-running state
   const isActive = status === 'running' || status === 'rerunning';
 
@@ -383,17 +401,17 @@ function PhaseTile({
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-sm leading-tight">{label}</span>
         {status === 'complete' && (
-          <span aria-label="Complete" className="text-green-600 text-base shrink-0">
+          <span aria-label={t('phase_complete_aria')} className="text-green-600 text-base shrink-0">
             ✓
           </span>
         )}
         {status === 'error' && (
-          <span aria-label="Error" className="text-red-500 text-base shrink-0">
+          <span aria-label={t('phase_error_aria')} className="text-red-500 text-base shrink-0">
             ✕
           </span>
         )}
       </div>
-      <div className="text-xs mt-0.5 opacity-70">{STATUS_LABEL[status]}</div>
+      <div className="text-xs mt-0.5 opacity-70">{t(STATUS_KEYS[status])}</div>
 
       {/* Progress stripe for active phases */}
       {isActive && (

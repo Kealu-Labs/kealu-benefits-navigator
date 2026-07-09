@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import type { ChatMessage } from '@/types/session';
 import { ALL_FIELDS, TOTAL_STEPS, type IntakeField, type IntakeAnswer } from '@/lib/intake-flow';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface LocalMessage {
   id: string;
@@ -37,18 +38,6 @@ interface ChatInterfaceProps {
   onReady: (runId: string) => void;
 }
 
-const WELCOME =
-  'Hello! I am an AI Agent powered by Kealu Vector to help you find health insurance and benefit programs for your household.\n\n' +
-  'I\'ll ask a few questions to understand your situation — no account info needed, and your information always stays private.\n\n' +
-  'Let\'s start with some basics. What is your ZIP code?\n\n' +
-  '(Your ZIP code tells us which health plans, state programs, county services, clinics, and local assistance options are available where you live.)';
-
-const WELCOME_BACK =
-  'Welcome back! Picking up where we left off.';
-
-const READY_MSG =
-  "Great — I have enough information to get started. Launching the analysis now…";
-
 // Module-level counter for generating stable, unique per-component message IDs.
 // Using a counter (not crypto.randomUUID) keeps the ID predictable and avoids
 // a hydration mismatch: the same counter value is produced whether the component
@@ -72,6 +61,7 @@ export default function ChatInterface({
   initialNextQuestion,
   onReady,
 }: ChatInterfaceProps) {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [input, setInput] = useState('');
   const [isPending, setIsPending] = useState(false);
@@ -90,12 +80,12 @@ export default function ChatInterface({
     const init: LocalMessage[] = [];
 
     if (initialMessages.length === 0) {
-      init.push({ id: uid(), role: 'assistant', content: WELCOME });
+      init.push({ id: uid(), role: 'assistant', content: t('chat_welcome') });
     } else {
       for (const m of initialMessages) {
         init.push({ id: uid(), role: m.role, content: m.content });
       }
-      init.push({ id: uid(), role: 'assistant', content: WELCOME_BACK });
+      init.push({ id: uid(), role: 'assistant', content: t('chat_welcome_back') });
     }
 
     if (initialNextQuestion && initialMessages.length > 0) {
@@ -109,8 +99,7 @@ export default function ChatInterface({
       init.push({
         id: uid(),
         role: 'assistant',
-        content:
-          "You're all set! Click 'Run Analysis' below or type anything to kick off the benefits analysis.",
+        content: t('chat_run_prompt'),
       });
     }
 
@@ -165,7 +154,7 @@ export default function ChatInterface({
         // All required fields collected — show confirmation then kick off the run.
         setMessages((prev) => [
           ...prev,
-          { id: uid(), role: 'assistant', content: READY_MSG },
+          { id: uid(), role: 'assistant', content: t('chat_ready') },
         ]);
         if (await startAnalysis()) return;
       } else if (data.type === 'question' && data.field) {
@@ -181,7 +170,7 @@ export default function ChatInterface({
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: uid(), role: 'assistant', content: '⚠ Something went wrong. Please try again.' },
+        { id: uid(), role: 'assistant', content: t('chat_error_generic') },
       ]);
     } finally {
       setIsPending(false);
@@ -228,7 +217,7 @@ export default function ChatInterface({
       {
         id: uid(),
         role: 'assistant',
-        content: `⚠ Unable to start analysis: ${startData.error ?? 'please try again.'}`,
+        content: `${t('chat_unable_to_start')}: ${startData.error ?? t('chat_please_retry')}`,
       },
     ]);
     return false;
@@ -243,7 +232,7 @@ export default function ChatInterface({
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: uid(), role: 'assistant', content: '⚠ Something went wrong. Please try again.' },
+        { id: uid(), role: 'assistant', content: t('chat_error_generic') },
       ]);
     } finally {
       setIsPending(false);
@@ -286,7 +275,7 @@ export default function ChatInterface({
                   <span className="text-slate-500"> · {currentField.label}</span>
                 </>
               ) : (
-                'All set — ready to run'
+                t('chat_all_set')
               )}
             </span>
             {answers.length > 0 && (
@@ -295,7 +284,7 @@ export default function ChatInterface({
                 onClick={() => setShowPanel((v) => !v)}
                 className="text-xs font-medium text-blue-400 hover:text-blue-300 focus:outline-none"
               >
-                {showPanel ? 'Hide answers' : 'Edit answers'}
+                {showPanel ? t('chat_hide_answers') : t('chat_edit_answers')}
               </button>
             )}
           </div>
@@ -332,14 +321,14 @@ export default function ChatInterface({
                         onClick={() => void saveEdit(a.key)}
                         className="font-medium text-blue-400 hover:text-blue-300 focus:outline-none"
                       >
-                        Save
+                        {t('chat_save')}
                       </button>
                       <button
                         type="button"
                         onClick={() => setEditingKey(null)}
                         className="text-slate-500 hover:text-slate-300 focus:outline-none"
                       >
-                        Cancel
+                        {t('chat_cancel')}
                       </button>
                     </div>
                   ) : (
@@ -353,7 +342,7 @@ export default function ChatInterface({
                         }}
                         className="pt-1 font-medium text-blue-400 hover:text-blue-300 focus:outline-none"
                       >
-                        Edit
+                        {t('chat_edit')}
                       </button>
                     </>
                   )}
@@ -407,7 +396,7 @@ export default function ChatInterface({
             }}
             className="text-xs text-slate-400 underline hover:text-slate-600 focus:outline-none"
           >
-            Skip remaining questions
+            {t('chat_skip')}
           </button>
         </div>
       )}
@@ -422,7 +411,7 @@ export default function ChatInterface({
             disabled={isPending}
             className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-slate-900 transition-colors"
           >
-            {isPending ? 'Starting…' : 'Run Analysis'}
+            {isPending ? t('chat_starting') : t('chat_run_analysis')}
           </button>
         </div>
       )}
@@ -439,17 +428,17 @@ export default function ChatInterface({
           onKeyDown={handleKeyDown}
           disabled={isPending}
           rows={2}
-          placeholder="Type your answer… (Enter to send, Shift+Enter for newline)"
+          placeholder={t('chat_placeholder')}
           className="flex-1 resize-none rounded-lg border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 px-3 py-2 text-sm leading-snug focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Your message"
+          aria-label={t('chat_input_aria')}
         />
         <button
           type="submit"
           disabled={isPending || !input.trim()}
           className="self-end rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
-          aria-label="Send message"
+          aria-label={t('chat_send_aria')}
         >
-          Send
+          {t('chat_send')}
         </button>
       </form>
     </div>
