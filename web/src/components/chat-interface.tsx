@@ -61,7 +61,7 @@ export default function ChatInterface({
   initialNextQuestion,
   onReady,
 }: ChatInterfaceProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [input, setInput] = useState('');
   const [isPending, setIsPending] = useState(false);
@@ -105,7 +105,7 @@ export default function ChatInterface({
 
     setMessages(init);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMessages, initialNextQuestion, t]);
+  }, [initialMessages, initialNextQuestion, locale]);
 
   // Load the answers-so-far snapshot for the progress bar + editable panel
   // (also covers resumed sessions). The conversational POST never returns PII,

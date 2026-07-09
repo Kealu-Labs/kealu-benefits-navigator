@@ -22,9 +22,11 @@ import { t as tFn } from '@/i18n';
 import type { Messages } from '@/i18n';
 
 export function useTranslation() {
-  const { msgs } = useLanguage();
+  const { msgs, locale } = useLanguage();
+
   return {
     /** Translate a message key to the current locale's string. */
     t: (key: keyof Messages | string): string => tFn(msgs, key),
+    locale,
   };
 }
