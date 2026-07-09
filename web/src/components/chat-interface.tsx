@@ -105,7 +105,7 @@ export default function ChatInterface({
 
     setMessages(init);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialMessages, initialNextQuestion, t]);
 
   // Load the answers-so-far snapshot for the progress bar + editable panel
   // (also covers resumed sessions). The conversational POST never returns PII,
