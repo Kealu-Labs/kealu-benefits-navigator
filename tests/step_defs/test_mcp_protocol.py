@@ -314,8 +314,8 @@ def check_empty_result(ctx):
 def check_audit_actor_value(ctx, expected_actor):
     actors = _get_audit_actors(ctx.audit_records)
     assert actors, "No audit records with actor field found"
-    assert expected_actor in actors, (
-        f"Expected actor {expected_actor!r} not in {actors}"
+    assert all(a == expected_actor for a in actors), (
+        f"Expected every audit actor to be {expected_actor!r}, got {actors}"
     )
 
 
@@ -339,7 +339,9 @@ def check_audit_session_id_shape(ctx):
 
 _NON_DICT_CLIENTINFO = {
     "string": "malicious-client",
-    "list": [],
+    "list": [
+        "malicious-client"
+    ],  # non-empty: falsy [] cannot distinguish the isinstance guard from a legacy 'or {}' fallback
     "integer": 5,
     "null": None,
     "boolean": True,
