@@ -65,6 +65,12 @@ Feature: MCP Protocol Compliance
     And the audit actor is at most 128 characters long
     And the audit actor preserves the printable substring "evilloginject"
 
+  Scenario: Non-ASCII audit content is escaped to ASCII in the raw log line
+    When the server is initialized with a non-ASCII homoglyph clientInfo name
+    And an audit event is triggered by calling an unknown tool
+    Then every raw audit log line is pure ASCII
+    And the raw audit log escapes the homoglyph as a unicode sequence
+
   Scenario: Tool call before initialize logs a pre-initialization warning
     Given the session has not been initialized
     When an audit event is triggered by calling an unknown tool

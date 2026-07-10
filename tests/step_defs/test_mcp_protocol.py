@@ -111,6 +111,15 @@ def test_non_dict_clientinfo_no_crash():
     pass
 
 
+@pytest.mark.allow_log_output  # audit INFO lines are intentional; asserted via caplog
+@scenario(
+    "../features/mcp_protocol.feature",
+    "Non-ASCII audit content is escaped to ASCII in the raw log line",
+)
+def test_non_ascii_audit_content_escaped():
+    pass
+
+
 @pytest.mark.allow_log_output  # WARNING about pre-init tool call is intentional; asserted below
 @scenario(
     "../features/mcp_protocol.feature",
@@ -377,6 +386,21 @@ def send_hostile_initialize():
     )
 
 
+@when(
+    "the server is initialized with a non-ASCII homoglyph clientInfo name",
+    target_fixture="ctx",
+)
+def send_homoglyph_initialize():
+    # Cyrillic "а" (U+0430) is printable so _sanitize_actor preserves it;
+    # only ensure_ascii=True in json.dumps neutralises it to а.
+    homoglyph_name = "pаypal-client"
+    return _send(
+        "initialize",
+        req_id=1,
+        params={"clientInfo": {"name": homoglyph_name, "version": "1.0"}},
+    )
+
+
 @when("an audit event is triggered by calling an unknown tool")
 def trigger_audit_event(ctx, caplog):
     with caplog.at_level(logging.INFO, logger="benefits_navigator.mcp_server"):
@@ -386,6 +410,10 @@ def trigger_audit_event(ctx, caplog):
 
 def _get_audit_actors(records: list) -> list[str]:
     return [e["actor"] for e in _parse_audit_records(records) if "actor" in e]
+
+
+def _get_audit_lines(records: list) -> list[str]:
+    return [m for r in records if (m := r.getMessage()).startswith("AUDIT ")]
 
 
 @then("the audit actor contains only printable characters")
@@ -418,6 +446,28 @@ def check_actor_preserves_substring(ctx, substring):
         assert substring in actor, (
             f"Expected {substring!r} preserved in actor {actor!r}"
         )
+
+
+@then("every raw audit log line is pure ASCII")
+def check_audit_lines_are_ascii(ctx):
+    audit_lines = _get_audit_lines(ctx.audit_records)
+    assert audit_lines, (
+        f"No AUDIT-prefixed records found; records: "
+        f"{[r.getMessage() for r in ctx.audit_records]}"
+    )
+    for line in audit_lines:
+        assert line.isascii(), f"Audit log line is not pure ASCII: {line!r}"
+
+
+@then("the raw audit log escapes the homoglyph as a unicode sequence")
+def check_audit_escapes_homoglyph(ctx):
+    audit_lines = _get_audit_lines(ctx.audit_records)
+    assert audit_lines, "No AUDIT-prefixed records found"
+    # The Cyrillic "а" (U+0430) must appear as the JSON unicode escape \u0430
+    escaped = "\\u0430"
+    assert any(escaped in line for line in audit_lines), (
+        f"Expected {escaped!r} in at least one audit line; lines: {audit_lines}"
+    )
 
 
 @then("a pre-initialization warning is logged")
