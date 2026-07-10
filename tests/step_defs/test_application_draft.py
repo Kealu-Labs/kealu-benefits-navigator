@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
@@ -227,3 +228,10 @@ def check_pdf_contains(ctx, text):
     # step must be rewritten to use a real PDF text extractor (e.g. pdfminer/pypdf).
     pdf_str = ctx.pdf_bytes.decode("latin-1", errors="replace")
     assert text in pdf_str, f"Expected '{text}' in PDF content"
+
+
+@then("the PDF text does not contain a filled SSN pattern")
+def check_no_filled_ssn(ctx):
+    pdf_str = ctx.pdf_bytes.decode("latin-1", errors="replace")
+    matches = re.findall(r"\b\d{3}-\d{2}-\d{4}\b", pdf_str)
+    assert not matches, f"Filled SSN-like pattern rendered in PDF: {matches}"

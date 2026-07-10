@@ -39,3 +39,4 @@ Feature: Application Draft PDF Generation
     When the PDF is generated and read back
     Then the PDF text contains "SSN: ____-____-________"
     And the PDF text contains "do NOT pre-fill"
+    And the PDF text does not contain a filled SSN pattern
