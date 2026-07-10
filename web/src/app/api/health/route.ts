@@ -10,7 +10,7 @@ import { checkKvrVersion, checkCmsApiKey } from '@/lib/kvr-checker';
  * GET /api/health
  * Returns system dependency status without exposing filesystem paths.
  */
-export async function GET(_req: Request): Promise<Response> {
+export async function GET(): Promise<Response> {
   const kvr = checkKvrVersion();
   const cmsKeySet = checkCmsApiKey();
 
