@@ -81,6 +81,7 @@ const es: typeof en = {
   // Language names are always shown in the language itself
   lang_en: 'English',
   lang_es: 'Español',
+  lang_zh_CN: '简体中文',
 } as const;
 
 export default es;

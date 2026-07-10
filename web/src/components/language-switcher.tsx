@@ -25,6 +25,7 @@ import { useRouter } from 'next/navigation';
 const LOCALE_LABELS: Record<Locale, string> = {
   en: 'English',
   es: 'Español',
+  'zh-CN': '简体中文',
 };
 
 export default function LanguageSwitcher() {

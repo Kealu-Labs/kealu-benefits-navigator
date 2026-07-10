@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "lint": "eslint src --max-warnings=0",
     "start": "next start",
     "test": "vitest run --reporter=verbose",
     "test:unit": "vitest run tests/unit --reporter=verbose",

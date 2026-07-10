@@ -14,15 +14,16 @@
 
 import en from './messages/en';
 import es from './messages/es';
+import zhCN from './messages/zh-CN';
 
 /** Shape of a message catalog — derived from the English catalog, the source of truth. */
 export type Messages = typeof en;
 
 /** Supported locale codes. Kept in sync with SUPPORTED_LOCALES in language-context.tsx. */
-export type Locale = 'en' | 'es';
+export type Locale = 'en' | 'es' | 'zh-CN';
 
 /** Map of every supported locale to its catalog. */
-export const messages: Record<Locale, Messages> = { en, es };
+export const messages: Record<Locale, Messages> = { en, es, 'zh-CN': zhCN };
 
 /**
  * Look up a translation by key in the given catalog.

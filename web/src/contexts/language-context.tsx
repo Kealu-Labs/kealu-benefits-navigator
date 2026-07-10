@@ -20,7 +20,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { messages as allMessages } from '@/i18n';
 import type { Messages } from '@/i18n';
 
-export const SUPPORTED_LOCALES = ['en', 'es'] as const;
+export const SUPPORTED_LOCALES = ['en', 'es', 'zh-CN'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 /** localStorage key used to persist the user's manual language choice. */
@@ -52,16 +52,22 @@ export function detectBrowserLocale(): Locale {
   // Manual override stored by setLocale wins over auto-detection.
   if (typeof localStorage !== 'undefined') {
     const stored = localStorage.getItem(STORAGE_KEY);
+
     if (stored && (SUPPORTED_LOCALES as readonly string[]).includes(stored)) {
       return stored as Locale;
     }
   }
 
-  // Auto-detect from the browser's preferred language.
+  // Auto-detect from browser language.
   if (typeof navigator !== 'undefined' && navigator.language) {
-    const lang = navigator.language.split('-')[0].toLowerCase();
-    if ((SUPPORTED_LOCALES as readonly string[]).includes(lang)) {
-      return lang as Locale;
+    const lang = navigator.language.toLowerCase();
+
+    if (lang.startsWith('zh')) {
+      return 'zh-CN';
+    }
+
+    if (lang.startsWith('es')) {
+      return 'es';
     }
   }
 
