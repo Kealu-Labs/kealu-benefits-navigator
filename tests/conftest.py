@@ -160,11 +160,10 @@ def build_decision_jsonl(phase_outputs: dict[str, str]) -> str:
 @pytest.fixture(autouse=True)
 def _reset_mcp_session():
     """Reset _SESSION to defaults before/after each test for order-independence."""
-    defaults = {"actor": "unknown", "session_id": "none"}
     # .update() mutates in place; reassignment would break mcp_server's reference to this dict
-    mcp_mod._SESSION.update(defaults)
+    mcp_mod._SESSION.update(mcp_mod._SESSION_DEFAULTS)
     yield
-    mcp_mod._SESSION.update(defaults)
+    mcp_mod._SESSION.update(mcp_mod._SESSION_DEFAULTS)
 
 
 @pytest.fixture

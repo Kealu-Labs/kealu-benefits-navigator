@@ -341,11 +341,19 @@ def _sanitize_actor(text: str) -> str:
 
 # Session identity captured during the MCP initialize handshake, attached to
 # every audit event so actions can be attributed to a client/session.
-# _SESSION is written exactly once — during the single-threaded ``initialize``
-# handshake — and is thereafter read-only for the lifetime of the process.
-# Because ``main()`` processes stdin messages serially in a single loop
-# (see the ``for line in sys.stdin`` loop), no lock is required.
-_SESSION: dict[str, str] = {"actor": "unknown", "session_id": "none"}
+# _SESSION is mutated only by the ``initialize`` handler: each initialize
+# request (re)writes both keys, so a client that re-sends initialize starts a
+# fresh session identity.  Because ``main()`` processes stdin messages serially
+# in a single loop (see the ``for line in sys.stdin`` loop), reads and writes
+# never interleave and no lock is required.
+#
+# Security note: the actor identity is asserted by the client via
+# ``clientInfo`` and is NOT verified by the server — MCP stdio has no
+# transport-layer authentication.  Audit events therefore attribute actions to
+# the client-claimed identity; this is a limitation to note in any SOC 2
+# evidence package.
+_SESSION_DEFAULTS: dict[str, str] = {"actor": "unknown", "session_id": "none"}
+_SESSION: dict[str, str] = dict(_SESSION_DEFAULTS)
 
 
 def _audit_log(
