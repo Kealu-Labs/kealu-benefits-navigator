@@ -135,7 +135,7 @@ describe('messages map', () => {
     expect(t(messages.es, 'lang_es')).toBe('Español');
   });
 
-  it('has exactly two locale entries', () => {
-    expect(Object.keys(messages)).toHaveLength(2);
-  });
+it('has exactly three locale entries', () => {
+  expect(Object.keys(messages)).toEqual(['en', 'es', 'zh-CN']);
+});
 });

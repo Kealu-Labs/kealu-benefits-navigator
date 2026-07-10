@@ -3,13 +3,9 @@
  * Licensed under the Kealu Vector License v1.0 — PATENT PENDING
  */
 
-import type en from './en';
+import type { Messages } from '@/i18n';
 
-/**
- * Simplified Chinese message catalog.
- * Must contain every key defined in en.ts.
- */
-const zhCN: typeof en = {
+const zhCN: Messages = {
   page_title: '福利导航器',
   page_subtitle:
     '为您的家庭查找医疗保险和福利项目 — 无需创建账户。',

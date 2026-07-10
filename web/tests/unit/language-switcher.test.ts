@@ -35,11 +35,10 @@ describe('SUPPORTED_LOCALES and language-switcher parity', () => {
     // The switcher's LOCALE_LABELS must have an entry for every SUPPORTED_LOCALE.
     // Since LOCALE_LABELS is module-private, we verify this indirectly by
     // confirming the count of SUPPORTED_LOCALES matches known labels.
-    expect(SUPPORTED_LOCALES).toContain('en');
-    expect(SUPPORTED_LOCALES).toContain('es');
+    expect(SUPPORTED_LOCALES).toEqual(['en', 'es', 'zh-CN']);
     // Both locales must be in the list — if new locales are added, tests will
     // remind the developer to add a matching label.
-    expect(SUPPORTED_LOCALES).toHaveLength(2);
+    expect(SUPPORTED_LOCALES).toHaveLength(3);
   });
 
   it('each supported locale is a non-empty string', () => {

@@ -53,18 +53,19 @@ describe('SUPPORTED_LOCALES', () => {
     expect(SUPPORTED_LOCALES).toContain('es');
   });
 
-  it('contains exactly 2 supported locales', async () => {
+  it('contains exactly 3 supported locales', async () => {
     const { SUPPORTED_LOCALES } = await import('@/contexts/language-context');
-    expect(SUPPORTED_LOCALES).toHaveLength(2);
+    expect(SUPPORTED_LOCALES).toHaveLength(3);
   });
 });
 
 describe('detectBrowserLocale()', () => {
   beforeEach(() => {
-    fakeLocalStorage.clear();
-    vi.stubGlobal('localStorage', fakeLocalStorage);
-    vi.stubGlobal('navigator', fakeNavigator);
-  });
+  fakeLocalStorage.clear();
+  fakeNavigator.language = 'en-US';
+  vi.stubGlobal('localStorage', fakeLocalStorage);
+  vi.stubGlobal('navigator', fakeNavigator);
+});
 
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -114,12 +115,18 @@ describe('detectBrowserLocale()', () => {
     expect(detectBrowserLocale()).toBe('es');
   });
 
-  it('ignores unsupported localStorage value and falls back to "en" when navigator is also unsupported', async () => {
-    fakeNavigator.language = 'zh-CN';
-    fakeLocalStorage.setItem('kbn-locale', 'de'); // not in SUPPORTED_LOCALES
-    const { detectBrowserLocale } = await import('@/contexts/language-context');
-    expect(detectBrowserLocale()).toBe('en');
-  });
+  it('detects Simplified Chinese from navigator.language', async () => {
+  fakeNavigator.language = 'zh-CN';
+  const { detectBrowserLocale } = await import('@/contexts/language-context');
+  expect(detectBrowserLocale()).toBe('zh-CN');
+});
+
+it('ignores unsupported localStorage value and falls back to "en" when navigator is also unsupported', async () => {
+  fakeNavigator.language = 'de-DE';
+  fakeLocalStorage.setItem('kbn-locale', 'fr');
+  const { detectBrowserLocale } = await import('@/contexts/language-context');
+  expect(detectBrowserLocale()).toBe('en');
+});
 
   it('returns "en" as default when localStorage is absent and navigator is undefined', async () => {
     // Restore globals to undefined so neither branch fires

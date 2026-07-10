@@ -17,7 +17,9 @@ import es from './messages/es';
 import zhCN from './messages/zh-CN';
 
 /** Shape of a message catalog — derived from the English catalog, the source of truth. */
-export type Messages = typeof en;
+export type Messages = {
+  [K in keyof typeof en]: string;
+};
 
 /** Supported locale codes. Kept in sync with SUPPORTED_LOCALES in language-context.tsx. */
 export type Locale = 'en' | 'es' | 'zh-CN';

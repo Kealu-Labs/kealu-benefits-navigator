@@ -2,14 +2,13 @@
  * Copyright 2025 Kealu Inc. All rights reserved.
  * Licensed under the Kealu Vector License v1.0 — PATENT PENDING
  */
-
 import type en from './en';
 
-/**
- * Spanish message catalog.
- * Must contain every key defined in en.ts.
- */
-const es: typeof en = {
+type Messages = {
+  [K in keyof typeof en]: string;
+};
+
+const es: Messages = {
   // ── page.tsx ──────────────────────────────────────────────────────────────
   page_title: 'Navegador de Beneficios',
   page_subtitle:
