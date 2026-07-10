@@ -64,6 +64,7 @@ def test_compare_required_fields():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario("../features/mcp_protocol.feature", "Tool call returns MCP content array")
 def test_tool_call_content():
     pass

@@ -6,6 +6,7 @@ import re
 import tempfile
 from pathlib import Path
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.mcp_server import _execute_tool
@@ -16,6 +17,7 @@ from benefits_navigator.pdf_generator import generate_application_pdf
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/application_draft.feature", "PDF is generated with correct structure"
 )
@@ -23,6 +25,7 @@ def test_pdf_structure():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/application_draft.feature",
     "PDF extracts eligible programs from workflow output",
@@ -31,6 +34,7 @@ def test_pdf_programs():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/application_draft.feature", "Missing workflow output returns guidance"
 )

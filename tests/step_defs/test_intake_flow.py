@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.mcp_server import _check_intake_completeness, _execute_tool
@@ -78,6 +79,7 @@ def test_full_profile():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario("../features/intake_flow.feature", "skip_intake bypasses all checks")
 def test_skip_intake():
     pass

@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.form_filler import (
@@ -17,6 +18,7 @@ from benefits_navigator.form_filler import (
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.allow_log_output  # pypdf emits "No fields to update on this page" for non-fillable pages in multi-page official forms — expected side effect
 @scenario(
     "../features/form_filler.feature", "California gets the official SAWS-1 form filled"
 )
@@ -29,6 +31,7 @@ def test_texas_worksheet():
     pass
 
 
+@pytest.mark.allow_log_output  # pypdf emits "No fields to update on this page" for non-fillable pages in multi-page official forms — expected side effect
 @scenario(
     "../features/form_filler.feature", "California form has correct program checkboxes"
 )
@@ -36,11 +39,13 @@ def test_california_checkboxes():
     pass
 
 
+@pytest.mark.allow_log_output  # pypdf emits "No fields to update on this page" for non-fillable pages in multi-page official forms — expected side effect
 @scenario("../features/form_filler.feature", "State name is normalized to code")
 def test_state_normalization():
     pass
 
 
+@pytest.mark.allow_log_output  # pypdf emits "No fields to update on this page" for non-fillable pages in multi-page official forms — expected side effect
 @scenario(
     "../features/form_filler.feature",
     "Illinois gets the official IL444-2378B form filled",
@@ -49,6 +54,7 @@ def test_illinois_official():
     pass
 
 
+@pytest.mark.allow_log_output  # pypdf emits "No fields to update on this page" for non-fillable pages in multi-page official forms — expected side effect
 @scenario(
     "../features/form_filler.feature",
     "New York gets the official LDSS-4826-DD form filled",
@@ -57,6 +63,7 @@ def test_new_york_official():
     pass
 
 
+@pytest.mark.allow_log_output  # pypdf emits "No fields to update on this page" for non-fillable pages in multi-page official forms — expected side effect
 @scenario(
     "../features/form_filler.feature",
     "Pennsylvania gets the official PA-600 form filled",

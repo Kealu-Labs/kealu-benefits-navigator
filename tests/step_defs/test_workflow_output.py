@@ -6,6 +6,7 @@ import json
 import re
 from unittest.mock import MagicMock
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.mcp_server import _execute_tool
@@ -16,7 +17,12 @@ from ..conftest import MOCK_PHASE_OUTPUTS
 # Scenarios
 # ---------------------------------------------------------------------------
 
+# All workflow_output scenarios call navigate_benefits which invokes _execute_tool
+# without a prior initialize handshake — pre-init WARNING is an expected side effect.
+_PREINIT = pytest.mark.allow_log_output
 
+
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature",
     "All five phase outputs plus sources section are collected and formatted",
@@ -25,6 +31,7 @@ def test_five_phases():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature", "Phase outputs appear in workflow order"
 )
@@ -32,6 +39,7 @@ def test_phase_order():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature",
     "Benefits research identifies Texas programs with dollar estimates",
@@ -40,6 +48,7 @@ def test_texas_programs():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature",
     "Benefits research flags Texas as Medicaid non-expansion state",
@@ -48,6 +57,7 @@ def test_non_expansion():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature",
     "Insurance research returns plan-level premium estimates",
@@ -56,6 +66,7 @@ def test_premium_estimates():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature",
     "Evidence verification recalculates FPL percentage",
@@ -64,6 +75,7 @@ def test_fpl_recalc():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature",
     "Evidence verification catches SNAP threshold error",
@@ -72,6 +84,7 @@ def test_snap_correction():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature",
     "Eligibility validation produces structured determination table",
@@ -80,11 +93,13 @@ def test_eligibility_table():
     pass
 
 
+@_PREINIT
 @scenario("../features/workflow_output.feature", "Action plan contains government URLs")
 def test_gov_urls():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature", "Action plan includes document checklist"
 )
@@ -92,6 +107,7 @@ def test_document_checklist():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature", "Action plan flags time-sensitive deadlines"
 )
@@ -99,6 +115,7 @@ def test_deadlines():
     pass
 
 
+@_PREINIT
 @scenario(
     "../features/workflow_output.feature", "Workflow failure returns informative error"
 )

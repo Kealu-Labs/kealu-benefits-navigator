@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -160,6 +161,51 @@ def build_decision_jsonl(phase_outputs: dict[str, str]) -> str:
         }
         lines.append(json.dumps(entry))
     return "\n".join(lines) + "\n"
+
+
+@pytest.fixture(autouse=True)
+def _guard_unexpected_log_output(request):
+    """Fail the test if it emits WARNING or ERROR log records that are not asserted.
+
+    Two opt-outs:
+    1. Add ``@pytest.mark.allow_log_output`` with an inline justification — use when the
+       warning is an expected side effect of the setup, not the behavior under test.
+    2. Include ``caplog`` in the test's fixture list and assert on ``caplog.records`` —
+       use when the log output is part of the behavior under test.
+    """
+    if request.node.get_closest_marker("allow_log_output"):
+        yield
+        return
+    if "caplog" in request.fixturenames:
+        yield
+        return
+
+    class _CapturingHandler(logging.Handler):
+        def __init__(self):
+            super().__init__(level=logging.WARNING)
+            self.records: list[logging.LogRecord] = []
+
+        def emit(self, record: logging.LogRecord) -> None:
+            self.records.append(record)
+
+    handler = _CapturingHandler()
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    try:
+        yield
+    finally:
+        root_logger.removeHandler(handler)
+
+    if handler.records:
+        lines = [
+            f"  [{r.levelname}] {r.name}: {r.getMessage()}" for r in handler.records
+        ]
+        pytest.fail(
+            "Test emitted unexpected WARNING/ERROR log records. "
+            "Either assert them via caplog or add "
+            "@pytest.mark.allow_log_output with an inline justification.\n"
+            + "\n".join(lines)
+        )
 
 
 @pytest.fixture(autouse=True)

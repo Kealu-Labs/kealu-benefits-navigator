@@ -20,6 +20,7 @@ from ..conftest import DEMO_PROFILE, _parse_audit_records
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/tool_routing.feature",
     "navigate_benefits invokes benefits-navigator workflow",
@@ -28,6 +29,7 @@ def test_invokes_workflow():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/tool_routing.feature", "Workflow variables are passed through to kvr"
 )
@@ -35,6 +37,7 @@ def test_vars_passed():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/tool_routing.feature", "Empty optional fields are not passed to kvr"
 )
@@ -42,6 +45,7 @@ def test_empty_fields_omitted():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/tool_routing.feature",
     "check_eligibility invokes kvr assist with program name",
@@ -50,6 +54,7 @@ def test_check_eligibility():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/tool_routing.feature",
     "compare_insurance_plans invokes kvr assist with zip code",
@@ -58,6 +63,7 @@ def test_compare_plans():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario("../features/tool_routing.feature", "Unknown tool returns error message")
 def test_unknown_tool():
     pass

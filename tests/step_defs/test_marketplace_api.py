@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from unittest.mock import MagicMock
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.marketplace_api import (
@@ -81,6 +82,7 @@ def test_summary_limit():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/marketplace_api.feature",
     "compare_insurance_plans uses marketplace API when key is set",
@@ -89,6 +91,7 @@ def test_compare_with_api():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/marketplace_api.feature",
     "compare_insurance_plans falls back to kvr when no API key",
@@ -97,6 +100,7 @@ def test_compare_fallback_no_key():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/marketplace_api.feature",
     "compare_insurance_plans falls back on API error",
@@ -105,6 +109,7 @@ def test_compare_fallback_error():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario(
     "../features/marketplace_api.feature",
     "check_eligibility enriches with CMS data when key is set",
