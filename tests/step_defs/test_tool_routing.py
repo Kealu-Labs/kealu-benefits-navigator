@@ -13,7 +13,7 @@ from pytest_bdd import given, parsers, scenario, then, when
 import benefits_navigator.mcp_server as mcp_mod
 from benefits_navigator.mcp_server import _execute_tool, _handle_request
 
-from ..conftest import DEMO_PROFILE, _parse_audit_record
+from ..conftest import DEMO_PROFILE, _parse_audit_records
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -302,16 +302,18 @@ def when_tool_raises(exc_ctx, caplog):
 def then_exception_propagates(exc_ctx):
     assert exc_ctx.raised is not None
     assert isinstance(exc_ctx.raised, ValueError)
+    assert str(exc_ctx.raised) == exc_ctx.error_message, (
+        "audit path must re-raise the original exception unmodified"
+    )
 
 
 @then(parsers.parse('the audit log records error_type "{expected_error_type}"'))
 def then_audit_records_error_type(exc_ctx, expected_error_type):
-    events = [_parse_audit_record(r) for r in exc_ctx.audit_records]
+    events = _parse_audit_records(exc_ctx.audit_records)
     matching = [
         e
         for e in events
-        if e is not None
-        and e.get("outcome") == "error"
+        if e.get("outcome") == "error"
         and e.get("details", {}).get("error_type") == expected_error_type
     ]
     assert matching, (
@@ -333,10 +335,8 @@ def then_audit_no_pii(exc_ctx, pii_substring):
     )
 )
 def then_audit_events_carry_actor_and_session(exc_ctx, expected_actor):
-    events = [_parse_audit_record(r) for r in exc_ctx.audit_records]
-    tool_events = [
-        e for e in events if e is not None and e.get("action") == "tool_call"
-    ]
+    events = _parse_audit_records(exc_ctx.audit_records)
+    tool_events = [e for e in events if e.get("action") == "tool_call"]
     assert tool_events, (
         f"No tool_call audit events found; records: {exc_ctx.audit_text!r}"
     )

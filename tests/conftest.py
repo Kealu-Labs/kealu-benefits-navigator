@@ -11,14 +11,19 @@ import benefits_navigator.mcp_server as mcp_mod
 
 
 def _parse_audit_record(record) -> dict | None:
-    """Parse a log record as an audit event; returns the dict or None."""
+    """Parse a log record as an audit event.
+
+    Non-AUDIT lines are skipped — returns None.
+    An AUDIT-prefixed line that fails JSON parsing indicates a serialization
+    bug in _audit_log and fails the test immediately via pytest.fail.
+    """
     msg = record.getMessage()
     if not msg.startswith("AUDIT "):
         return None
     try:
         return json.loads(msg[len("AUDIT ") :])
     except json.JSONDecodeError:
-        return None
+        pytest.fail(f"AUDIT-prefixed log line is not valid JSON: {msg!r}")
 
 
 def _parse_audit_records(records: list) -> list[dict]:
