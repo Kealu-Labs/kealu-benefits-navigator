@@ -432,12 +432,14 @@ def check_pre_init_warning(ctx):
 
 
 # ---------------------------------------------------------------------------
-# Dispatch-loop isolation tests (main() error handling)
+# Dispatch-loop isolation tests (_serve() error handling)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.allow_log_output
-def test_main_isolates_handler_error_as_jsonrpc_internal_error(monkeypatch, capsys):
+@pytest.mark.allow_log_output  # ERROR from the isolated handler failure is intentional; asserted via caplog
+def test_serve_isolates_handler_error_as_jsonrpc_internal_error(
+    monkeypatch, capsys, caplog
+):
     def _boom(_request):
         raise RuntimeError("handler exploded")
 
@@ -445,15 +447,20 @@ def test_main_isolates_handler_error_as_jsonrpc_internal_error(monkeypatch, caps
     monkeypatch.setattr(
         "sys.stdin", io.StringIO('{"jsonrpc":"2.0","id":7,"method":"tools/list"}\n')
     )
-    mcp_mod.main()
+    with caplog.at_level(logging.ERROR, logger="benefits_navigator.mcp_server"):
+        mcp_mod._serve()
     out = capsys.readouterr().out.strip()
     response = json.loads(out)
     assert response["id"] == 7
     assert response["error"]["code"] == -32603
+    assert response["error"]["message"] == "Internal error"
+    assert any("Unhandled error handling request" in r.message for r in caplog.records)
 
 
-@pytest.mark.allow_log_output
-def test_main_swallows_handler_error_for_notification_without_id(monkeypatch, capsys):
+@pytest.mark.allow_log_output  # ERROR from the isolated handler failure is intentional; asserted via caplog
+def test_serve_swallows_handler_error_for_notification_without_id(
+    monkeypatch, capsys, caplog
+):
     def _boom(_request):
         raise RuntimeError("handler exploded")
 
@@ -461,5 +468,7 @@ def test_main_swallows_handler_error_for_notification_without_id(monkeypatch, ca
     monkeypatch.setattr(
         "sys.stdin", io.StringIO('{"jsonrpc":"2.0","method":"tools/list"}\n')
     )
-    mcp_mod.main()
+    with caplog.at_level(logging.ERROR, logger="benefits_navigator.mcp_server"):
+        mcp_mod._serve()
     assert capsys.readouterr().out.strip() == ""
+    assert any("Unhandled error handling request" in r.message for r in caplog.records)

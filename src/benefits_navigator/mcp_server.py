@@ -1685,31 +1685,8 @@ def _handle_sigterm(signum: int, frame: Any) -> None:
     logger.info("SIGTERM received, shutting down gracefully")
 
 
-def main() -> None:
-    """Run the MCP server on stdin/stdout.
-
-    Reads newline-delimited JSON-RPC messages from stdin and writes
-    responses to stdout.  Logs go to stderr so they don't pollute the
-    protocol stream.
-    """
-    logging.basicConfig(
-        level=logging.INFO,
-        stream=sys.stderr,
-        format='{"level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
-    )
-
-    signal.signal(signal.SIGTERM, _handle_sigterm)
-
-    # Startup validation
-    if not shutil.which("kvr"):
-        logger.warning(
-            "kvr not found on PATH — navigate_benefits and check_eligibility will fail"
-        )
-    if not os.environ.get("CMS_API_KEY"):
-        logger.warning("CMS_API_KEY not set — marketplace API features unavailable")
-
-    logger.info("Benefit Navigator MCP server starting (stdio transport)")
-
+def _serve() -> None:
+    """Dispatch newline-delimited JSON-RPC messages from stdin to stdout."""
     for line in sys.stdin:
         if _shutdown_requested:
             break
@@ -1739,6 +1716,33 @@ def main() -> None:
             sys.stdout.flush()
 
     logger.info("Benefit Navigator MCP server shutting down")
+
+
+def main() -> None:
+    """Run the MCP server on stdin/stdout.
+
+    Reads newline-delimited JSON-RPC messages from stdin and writes
+    responses to stdout.  Logs go to stderr so they don't pollute the
+    protocol stream.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stderr,
+        format='{"level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+    )
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
+    # Startup validation
+    if not shutil.which("kvr"):
+        logger.warning(
+            "kvr not found on PATH — navigate_benefits and check_eligibility will fail"
+        )
+    if not os.environ.get("CMS_API_KEY"):
+        logger.warning("CMS_API_KEY not set — marketplace API features unavailable")
+
+    logger.info("Benefit Navigator MCP server starting (stdio transport)")
+    _serve()
 
 
 if __name__ == "__main__":
