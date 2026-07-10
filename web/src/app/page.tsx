@@ -33,7 +33,10 @@ export default async function Home() {
   // LanguageProvider (language-context.tsx → writeLocaleCookie).  Falls back
   // to 'en' on first load (before the client has written the cookie).
   const localeRaw = cookieStore.get('kbn-locale')?.value;
-  const locale: Locale = localeRaw === 'es' ? 'es' : 'en';
+  const locale: Locale =
+  localeRaw === 'es' || localeRaw === 'zh-CN'
+    ? localeRaw
+    : 'en';
   const msgs = messages[locale];
 
   let initialMessages: ChatMessage[] = [];
