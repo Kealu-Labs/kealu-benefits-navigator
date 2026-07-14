@@ -180,9 +180,34 @@ def _extract_form_data(args: dict[str, Any]) -> dict[str, str]:
         data["home_county"] = county.replace(" County", "")
         data["mailing_county"] = county.replace(" County", "")
 
-    # Language — default English
-    data["language_speak"] = "English"
-    data["language_read"] = "English"
+    # Name — accept CA application key ("applicant_name") or generic key ("name")
+    name = args.get("applicant_name") or args.get("name") or ""
+    if name:
+        data["name"] = str(name)
+
+    # Phone
+    phone_home = args.get("phone_home") or ""
+    if phone_home:
+        data["phone_home"] = str(phone_home)
+
+    # Address
+    home_address = args.get("home_address") or ""
+    if home_address:
+        data["home_address"] = str(home_address)
+
+    # City
+    home_city = args.get("home_city") or ""
+    if home_city:
+        data["home_city"] = str(home_city)
+
+    # Email
+    email = args.get("email") or ""
+    if email:
+        data["email"] = str(email)
+
+    # Language — use provided value or default English
+    data["language_speak"] = args.get("language_speak") or "English"
+    data["language_read"] = args.get("language_read") or "English"
 
     return data
 
