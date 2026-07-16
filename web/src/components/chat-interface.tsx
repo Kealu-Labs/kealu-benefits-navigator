@@ -122,7 +122,6 @@ export default function ChatInterface({
 
   useEffect(() => {
     void refreshAnswers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Scroll to bottom on new messages
