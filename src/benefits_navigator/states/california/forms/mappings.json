@@ -1,0 +1,39 @@
+{
+  "_comment": "SAWS-1 AcroForm field mappings. Canonical key → PDF field name. Source of truth is saws1.py; this file is for documentation and tooling.",
+  "form_id": "CA-SAWS-1",
+  "version": "2023",
+  "state": "CA",
+  "supported_programs": ["CalFresh", "Medi-Cal", "CalWORKs"],
+  "checkbox_export_value": "/On",
+  "text_fields": {
+    "name": "applicant_name",
+    "other_name": "applicant_name_other",
+    "home_address": "applicant_home_address",
+    "home_unit": "applicant_home_unit",
+    "home_city": "applicant_home_city",
+    "home_state": "applicant_home_state",
+    "home_zip": "applicant_home_zip",
+    "home_county": "applicant_home_county",
+    "mailing_address": "applicant_mailing_address",
+    "mailing_unit": "applicant_mailing_unit",
+    "mailing_city": "applicant_mailing_city",
+    "mailing_state": "applicant_mailing_state",
+    "mailing_zip": "applicant_mailing_zip",
+    "mailing_county": "applicant_mailing_county",
+    "phone_home": "applicant_phone_home",
+    "phone_alternate": "applicant_phone_alternate",
+    "email": "applicant_email",
+    "ssn": "applicant_ssn",
+    "date": "applicant_date",
+    "language_speak": "applicant_language_speak",
+    "language_read": "applicant_language_read"
+  },
+  "checkbox_fields": {
+    "apply_calfresh": "applicant_programs_1",
+    "apply_medical": "applicant_programs_2",
+    "apply_calworks": "applicant_programs_3"
+  },
+  "manual_fields": ["ssn", "date_of_birth"],
+  "signature_fields": ["signature", "signature_date"],
+  "agency_only_fields": ["case_number", "worker_name", "office_use"]
+}
