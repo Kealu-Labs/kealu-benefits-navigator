@@ -86,12 +86,13 @@ export async function GET(
       ? 'partially-prefilled-SAWS-1-draft.pdf'
       : 'benefits-preparation-worksheet-draft.pdf';
 
-  return new Response(pdfBuffer, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'X-Correlation-Id': runId,
-    },
-  });
+  return new Response(new Uint8Array(pdfBuffer), {
+  status: 200,
+  headers: {
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${filename}"`,
+    'Content-Length': String(pdfBuffer.length),
+    'Cache-Control': 'private, no-store',
+  },
+});
 }
