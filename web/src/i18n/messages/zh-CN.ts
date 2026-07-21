@@ -62,9 +62,15 @@ const zhCN: Messages = {
   report_collapse: '收起',
   report_starting: '正在启动…',
   report_run_again: '再次运行',
+  report_download_official: '下载部分预填SAWS-1申请表',
+  report_download_worksheet: '下载准备工作表',
+  report_draft_disclaimer:
+    '州、邮政编码、县和项目复选框已预填。请在提交前检查并填写所有个人信息（姓名、出生日期、社会安全号码、地址）。',
 
   error_try_again: '重试',
   error_edit_info: '编辑我的信息',
+  error_stream_lost: '与分析流的连接已断开。请重试。',
+  error_stream_connect_failed: '无法连接到分析流。请重试。',
 
   lang_select_aria: '选择语言',
   lang_en: 'English',

@@ -12,13 +12,14 @@ import { NextResponse } from 'next/server';
  * Authorizes via session cookie: session.runId must match path runId.
  * Caches the assembled report in session.reportContent to avoid re-reading on refresh.
  * Deletes the run directory after the first successful assembly.
+ * Best-effort: calls generateDraft() to produce a pre-filled PDF application draft.
  *
  * Both session-store and report-assembler are imported dynamically so that
  * vi.mock() factories in tests are not triggered at module-load time (avoids
  * TDZ errors when mock factories reference consts declared after hoisted imports).
  *
  * Response codes:
- * - 200 `{ sections, bottomLine }` — report assembled
+ * - 200 `{ sections, bottomLine, draftAvailable, draftFormType }` — report assembled
  * - 403 — session does not own this runId
  * - 422 `{ error, missingPhases }` — run directory missing or incomplete
  */
@@ -30,7 +31,7 @@ export async function GET(
 
   // Dynamic imports: defers module resolution to handler invocation time
   const { sessionStore } = await import('@/lib/session-store');
-  const { assembleReport, deleteRunDir, getWorkforceBase, PHASE_ORDER } = await import(
+  const { assembleReport, deleteRunDir, getWorkforceBase, getDraftsBase, PHASE_ORDER } = await import(
     '@/lib/report-assembler'
   );
 
@@ -59,6 +60,27 @@ export async function GET(
 
   try {
     const payload = await assembleReport(runId, workforceBase);
+
+    // Best-effort: generate a pre-filled benefit application draft PDF.
+    // Failure is non-fatal — the report is still returned with draftAvailable: false.
+    try {
+      const { generateDraft } = await import('@/lib/draft-generator');
+      const draftsBase = getDraftsBase();
+      // Concatenate all phase content for checkbox determination in the Python helper
+      const workflowOutput = payload.sections.map((s) => s.content).join('\n\n');
+      const draftResult = await generateDraft(runId, session.vars, workflowOutput, draftsBase);
+
+      if (draftResult) {
+        payload.draftAvailable = true;
+        payload.draftFormType = draftResult.formType;
+        sessionStore.update(session.sessionId, {
+          draftPath: draftResult.path,
+          draftFormType: draftResult.formType,
+        });
+      }
+    } catch {
+      // generateDraft failed — keep draftAvailable: false (already set by assembleReport)
+    }
 
     // Cache in session and update status
     sessionStore.update(session.sessionId, {

@@ -152,4 +152,14 @@ export interface Session {
    * used on subsequent requests after the run directory is deleted.
    */
   reportContent?: unknown;
+  /**
+   * Absolute filesystem path to the pre-filled benefit application draft PDF.
+   * Server-side only — never serialized to the client. null when no draft was generated.
+   */
+  draftPath?: string | null;
+  /**
+   * Form type of the draft PDF. "official" for a real state AcroForm,
+   * "worksheet" for the fallback worksheet PDF. null when no draft was generated.
+   */
+  draftFormType?: 'official' | 'worksheet' | null;
 }

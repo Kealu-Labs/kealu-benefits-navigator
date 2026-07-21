@@ -221,7 +221,15 @@ export function startRun(
   // cwd = parent of web/ = repo root, so kvr writes .workforce/ to repo root
   const cwd = path.join(process.cwd(), '..');
 
-  const proc = spawn(kvrPath, args, { cwd, shell: false });
+  const proc = spawn(kvrPath, args, {
+    cwd,
+    shell: false,
+    // Force Python line-buffering so [PHASE_STREAM] events flush immediately
+    // even when stdout is a pipe (default block-buffer is ~8 KB).
+    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+  });
+
+  console.log(JSON.stringify({ level: 'info', event: 'kvr_spawned', runId, pid: proc.pid }));
 
   const idleTimer = setInterval(() => {
     const run = activeRuns.get(runId);
@@ -246,29 +254,40 @@ export function startRun(
   activeRuns.set(runId, run);
   sessionRunMap.set(sessionId, runId);
 
-  // Stream stdout lines
+  // Emit workflow_start immediately so late-connecting browsers receive it via
+  // history replay and can distinguish "KVR process alive" from "HTTP connection open".
+  broadcastToRun(runId, formatSseEvent({ event_type: 'workflow_start' }, `${runId}-start`));
+
+  // Stream stdout lines — split on CRLF or LF for cross-platform resilience
   let buffer = '';
   proc.stdout?.on('data', (chunk: Buffer) => {
     buffer += chunk.toString();
 
-    const lines = buffer.split('\n');
+    const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() ?? '';
 
     for (const line of lines) {
-        _processLine(runId, line, (payload) => broadcastToRun(runId, payload));
+      _processLine(runId, line, (payload) => broadcastToRun(runId, payload));
     }
-});
+  });
 
   // Drain stderr in the background to prevent the OS pipe buffer from filling
   // and deadlocking stdout (Node.js pipes are bounded at ~64 KB).
-  proc.stderr?.on('data', (_chunk: Buffer) => {
-    // Intentionally discarded — stderr is kvr's internal diagnostic output.
-    // Draining keeps the pipe from filling and deadlocking stdout.
+  proc.stderr?.on('data', (chunk: Buffer) => {
+    // Truncate stderr at 512 chars — no user data, no raw output
+    const snippet = chunk.toString().slice(0, 512).replace(/\n/g, ' ');
+    console.log(
+      JSON.stringify({ level: 'debug', event: 'kvr_stderr', runId, snippet }),
+    );
   });
 
-  // Delay termination by 2 s to let in-flight stdout lines reach their readline
-  // handler before we remove the run from activeRuns and close controllers.
   proc.on('close', (code, signal) => {
+    console.log(
+      JSON.stringify({ level: 'info', event: 'kvr_closed', runId, code, signal }),
+    );
+
+    // Delay termination by 2 s to let in-flight stdout lines reach their readline
+    // handler before we remove the run from activeRuns and close controllers.
     setTimeout(() => {
       const closing = activeRuns.get(runId);
       // If the process died without ever telling clients (no error event, no

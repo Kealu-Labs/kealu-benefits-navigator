@@ -31,6 +31,7 @@ vi.mock('@/lib/report-assembler', () => ({
   assembleReport: mockAssembleReport,
   deleteRunDir: mockDeleteRunDir,
   getWorkforceBase: mockGetWorkforceBase,
+  getDraftsBase: vi.fn().mockReturnValue('/tmp/.workforce-drafts'),
   PHASE_ORDER: ['benefits-research', 'insurance-research', 'evidence-verification', 'eligibility-validation', 'action-plan'],
   PHASE_DISPLAY_NAMES: {
     'benefits-research': 'Benefits Research',
@@ -39,6 +40,12 @@ vi.mock('@/lib/report-assembler', () => ({
     'eligibility-validation': 'Eligibility Validation',
     'action-plan': 'Action Plan',
   },
+}));
+
+// Mock draft-generator to avoid subprocess calls in report route tests
+vi.mock('@/lib/draft-generator', () => ({
+  generateDraft: vi.fn().mockResolvedValue(null),
+  resolvePythonExec: vi.fn().mockReturnValue(null),
 }));
 
 // Seed session store with a session that owns TEST_RUN_ID
@@ -66,6 +73,8 @@ const SAMPLE_REPORT = {
     { phaseName: 'action-plan', displayName: 'Action Plan', content: '## Action Plan\n1. Apply now', expanded: true },
   ],
   bottomLine: 'Your household qualifies for $18,000/year. Apply for CHIP this week.',
+  draftAvailable: false,
+  draftFormType: null,
 };
 
 function makeReportRequest(runId: string, sessionId?: string): Request {

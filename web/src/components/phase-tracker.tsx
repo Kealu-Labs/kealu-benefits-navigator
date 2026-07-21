@@ -106,6 +106,11 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
   const [phaseStatus, setPhaseStatus] = useState<Record<PhaseKey, PhaseStatus>>(initialStatus);
   const [error, setError] = useState<{ message: string } | null>(null);
   const [stopping, setStopping] = useState(false);
+  /**
+   * True once the EventSource HTTP connection is open (es.onopen fired).
+   * Used to distinguish "never connected" from "connected then lost" in onerror.
+   */
+  const [streamConnected, setStreamConnected] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const fetchingReport = useRef(false);
 
@@ -121,6 +126,16 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
     const es = new EventSource(`/api/workflow/${runId}/stream`);
     esRef.current = es;
 
+    // Local variable tracks connection state within this effect's closure so
+    // onerror reads the up-to-date value even though React state updates are async.
+    let connected = false;
+
+    // Proves HTTP connection accepted — not that KVR is alive.
+    es.onopen = () => {
+      connected = true;
+      setStreamConnected(true);
+    };
+
     es.addEventListener('phase', (raw) => {
       const e = raw as MessageEvent<string>;
       try {
@@ -131,6 +146,13 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
         };
 
         switch (event.event_type) {
+          case 'workflow_start': {
+            // Truthful "KVR process is alive" signal — server emits immediately post-spawn.
+            connected = true;
+            setStreamConnected(true);
+            break;
+          }
+
           case 'phase_start': {
             const key = event.phase as PhaseKey | undefined;
             if (key) {
@@ -169,6 +191,15 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
         // Malformed SSE event data — silently ignore
       }
     });
+
+    es.onerror = () => {
+      // connected reflects the most recent onopen/workflow_start state within
+      // this effect's closure — correctly differentiates "never connected"
+      // from "connected then dropped" even across async React state updates.
+      const msg = connected ? t('error_stream_lost') : t('error_stream_connect_failed');
+      setError({ message: msg });
+      es.close();
+    };
 
     return () => {
       es.close();
@@ -309,7 +340,7 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
         <div>
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-1">
             <span className="flex items-center gap-1.5">
-              {anyRunning && (
+              {(anyRunning || streamConnected) && (
                 <span className="relative flex h-2 w-2" aria-hidden="true">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
@@ -317,7 +348,7 @@ export default function PhaseTracker({ runId, onComplete, onRestart, onEdit }: P
               )}
               {percent >= 100
                 ? t('phase_finalizing')
-                : anyRunning
+                : anyRunning || streamConnected
                   ? t('phase_running_label')
                   : t('phase_starting')}
             </span>
