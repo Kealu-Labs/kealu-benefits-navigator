@@ -19,6 +19,7 @@ dev = [
 benefits-navigator = "benefits_navigator.mcp_server:main"
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 markers = [
     "integration: live CMS Marketplace API tests (require CMS_API_KEY)",
     "allow_log_output: test intentionally emits log lines; assertions cover them via caplog",
