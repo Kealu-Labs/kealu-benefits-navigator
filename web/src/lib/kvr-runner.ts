@@ -10,8 +10,8 @@ import type { HouseholdVars } from '@/types/session';
 import type { PhaseEvent } from '@/types/session';
 import { resolveKvr } from '@/lib/kvr-checker';
 
-/** Idle timeout: 10 minutes with no stdout output → terminate run. */
-export const IDLE_TIMEOUT_MS = 600_000;
+/** Idle timeout: 10 minutes with no subprocess output or phase event. */
+export const IDLE_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes
 
 /** Delay before SIGTERM when last SSE controller disconnects. */
 export const SIGTERM_DELAY_MS = 60_000;
@@ -50,11 +50,10 @@ interface ActiveRun {
   sessionId: string;
   /** Unix timestamp (ms) when the run was spawned. */
   startedAt: number;
-  /**
-   * Unix timestamp (ms) of the last stdout activity.
-   * Reset on every successful `[PHASE_STREAM]` event to prevent idle timeout on
-   * legitimately slow phases.
-   */
+/**
+ * Unix timestamp (ms) of the last subprocess or SSE activity.
+ * Reset when stdout/stderr is received or a phase event is broadcast.
+ */
   lastEventAt: number;
   /** Active ReadableStream controllers receiving broadcasted SSE events. */
   controllers: Set<StreamController>;
@@ -76,15 +75,35 @@ interface ActiveRun {
   sawTerminal?: boolean;
 }
 
-/** Map of runId → ActiveRun for all in-progress workflow runs. */
-export const activeRuns = new Map<string, ActiveRun>();
-
 /**
- * Secondary index: sessionId → runId.
- * Kept in sync with activeRuns to support O(1) idempotency checks in startRun()
- * and getRunIdForSession() without scanning all activeRuns.
+ * Process-global registry.
+ *
+ * Next.js development mode can evaluate this module in separate route bundles.
+ * Keeping these maps on globalThis ensures the workflow start route and SSE
+ * stream route share the same in-flight workflow state.
  */
-const sessionRunMap = new Map<string, string>();
+interface RunnerRegistry {
+  activeRuns: Map<string, ActiveRun>;
+  sessionRunMap: Map<string, string>;
+}
+
+const globalForKvrRunner = globalThis as unknown as {
+  __benefitsNavigatorKvrRunner?: RunnerRegistry;
+};
+
+const runnerRegistry =
+  globalForKvrRunner.__benefitsNavigatorKvrRunner ?? {
+    activeRuns: new Map<string, ActiveRun>(),
+    sessionRunMap: new Map<string, string>(),
+  };
+
+globalForKvrRunner.__benefitsNavigatorKvrRunner = runnerRegistry;
+
+/** Map of runId → ActiveRun for all in-progress workflow runs. */
+export const activeRuns = runnerRegistry.activeRuns;
+
+/** Secondary index: sessionId → runId. */
+const sessionRunMap = runnerRegistry.sessionRunMap;
 
 /**
  * Format a PhaseEvent as an SSE frame.
@@ -258,32 +277,60 @@ export function startRun(
   // history replay and can distinguish "KVR process alive" from "HTTP connection open".
   broadcastToRun(runId, formatSseEvent({ event_type: 'workflow_start' }, `${runId}-start`));
 
-  // Stream stdout lines — split on CRLF or LF for cross-platform resilience
-  let buffer = '';
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    buffer += chunk.toString();
+// Stream stdout lines — split on CRLF or LF for cross-platform resilience
+let buffer = '';
 
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() ?? '';
+proc.stdout?.on('data', (chunk: Buffer) => {
+  const activeRun = activeRuns.get(runId);
+  if (activeRun) {
+    activeRun.lastEventAt = Date.now();
+  }
 
-    for (const line of lines) {
-      _processLine(runId, line, (payload) => broadcastToRun(runId, payload));
-    }
-  });
+  buffer += chunk.toString();
+
+  const lines = buffer.split(/\r?\n/);
+  buffer = lines.pop() ?? '';
+
+  for (const line of lines) {
+    _processLine(runId, line, (payload) =>
+      broadcastToRun(runId, payload),
+    );
+  }
+});
 
   // Drain stderr in the background to prevent the OS pipe buffer from filling
   // and deadlocking stdout (Node.js pipes are bounded at ~64 KB).
   proc.stderr?.on('data', (chunk: Buffer) => {
-    // Truncate stderr at 512 chars — no user data, no raw output
-    const snippet = chunk.toString().slice(0, 512).replace(/\n/g, ' ');
-    console.log(
-      JSON.stringify({ level: 'debug', event: 'kvr_stderr', runId, snippet }),
-    );
-  });
+  const activeRun = activeRuns.get(runId);
+  if (activeRun) {
+    activeRun.lastEventAt = Date.now();
+  }
 
-  proc.on('close', (code, signal) => {
+  console.log(
+    JSON.stringify({
+      level: 'debug',
+      event: 'kvr_stderr_activity',
+      runId,
+      bytes: chunk.length,
+    }),
+  );
+});
+    proc.on('close', (code, signal) => {
+    if (buffer.trim()) {
+      _processLine(runId, buffer, (payload) =>
+        broadcastToRun(runId, payload),
+      );
+      buffer = '';
+    }
+
     console.log(
-      JSON.stringify({ level: 'info', event: 'kvr_closed', runId, code, signal }),
+      JSON.stringify({
+        level: 'info',
+        event: 'kvr_closed',
+        runId,
+        code,
+        signal,
+      }),
     );
 
     // Delay termination by 2 s to let in-flight stdout lines reach their readline

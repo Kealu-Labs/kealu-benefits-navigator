@@ -93,6 +93,7 @@ export async function GET(
     'Content-Disposition': `attachment; filename="${filename}"`,
     'Content-Length': String(pdfBuffer.length),
     'Cache-Control': 'private, no-store',
+    'X-Correlation-Id': runId,
   },
 });
 }
