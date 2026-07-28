@@ -11,7 +11,7 @@ import type { PhaseEvent } from '@/types/session';
 import { resolveKvr } from '@/lib/kvr-checker';
 
 /** Idle timeout: 10 minutes with no subprocess output or phase event. */
-export const IDLE_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes
+export const IDLE_TIMEOUT_MS = 1_800_000; // 30 minutes
 
 /** Delay before SIGTERM when last SSE controller disconnects. */
 export const SIGTERM_DELAY_MS = 60_000;

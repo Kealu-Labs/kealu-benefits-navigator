@@ -66,8 +66,8 @@ function makeMockProcess() {
 }
 
 describe('Constants', () => {
-  it('IDLE_TIMEOUT_MS is 600_000 (10 minutes)', () => {
-    expect(IDLE_TIMEOUT_MS).toBe(600_000);
+  it('IDLE_TIMEOUT_MS is 1_800_000 (30 minutes)', () => {
+    expect(IDLE_TIMEOUT_MS).toBe(1_800_000);
   });
 
   it('SIGTERM_DELAY_MS is 60_000 (60 seconds)', () => {
@@ -167,6 +167,22 @@ describe('__internal._checkIdle()', () => {
     vi.useRealTimers();
   });
 
+  it('does not terminate a run within the 30-minute idle window', () => {
+    const terminateSpy = vi.fn();
+    const broadcastSpy = vi.fn();
+    const now = Date.now();
+
+    __internal._checkIdle(
+      'run-1',
+      now - 1_799_999,
+      terminateSpy,
+      broadcastSpy,
+    );
+
+    expect(broadcastSpy).not.toHaveBeenCalled();
+    expect(terminateSpy).not.toHaveBeenCalled();
+  });
+
   it('broadcasts error event and calls terminate when idle > IDLE_TIMEOUT_MS', () => {
     vi.useFakeTimers();
     const terminateSpy = vi.fn();
@@ -174,9 +190,8 @@ describe('__internal._checkIdle()', () => {
     const now = Date.now();
     vi.setSystemTime(now);
 
-    // lastEventAt is 11 minutes ago — should trigger idle timeout
-    __internal._checkIdle('run-1', now - 660_000, terminateSpy, broadcastSpy);
-
+    // lastEventAt is 31 minutes ago — should trigger idle timeout
+    __internal._checkIdle('run-1', now - 1_860_000, terminateSpy, broadcastSpy);
     expect(broadcastSpy).toHaveBeenCalledOnce();
     const payload: string = broadcastSpy.mock.calls[0][0];
     expect(payload).toContain('error');
@@ -521,13 +536,9 @@ describe('startRun() — workflow_start history event', () => {
 
 describe('__internal._processLine() — CRLF parsing', () => {
   it('parses lines split by CRLF (\\r\\n) the same as LF (\\n)', () => {
+    // The stdout buffer splitter removes CRLF delimiters before _processLine runs.
     const broadcastSpy = vi.fn();
     const event: PhaseEvent = { event_type: 'phase_start', phase: 'benefits-research' };
-    // Simulate a CRLF-terminated line (Windows line ending) — the \r should not corrupt the prefix match
-    const line = `[PHASE_STREAM] ${JSON.stringify(event)}\r`;
-    // After split(/\r?\n/), the \r is part of the last char of the line — strip it before JSON parse
-    // The implementation must handle this: after split(/\r?\n/) the \r is NOT present in the line,
-    // so we verify _processLine handles a clean line (split result of a CRLF buffer).
     const cleanLine = `[PHASE_STREAM] ${JSON.stringify(event)}`;
     __internal._processLine('test-run-crlf', cleanLine, broadcastSpy);
     expect(broadcastSpy).toHaveBeenCalledOnce();

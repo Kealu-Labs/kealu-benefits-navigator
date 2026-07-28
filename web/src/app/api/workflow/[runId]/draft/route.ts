@@ -10,9 +10,13 @@ import { NextResponse } from 'next/server';
 /**
  * GET /api/workflow/[runId]/draft
  *
- * Download the pre-filled benefit application draft PDF for a completed run.
+ * View or download the pre-filled benefit application draft PDF for a completed run.
  * Authorizes via session cookie: session.runId must match path runId and
  * session.draftPath must be set.
+ *
+ * Query parameters:
+ * - download=1 — forces attachment download
+ * - omitted — displays the PDF inline for browser preview
  *
  * Security: the absolute draftPath is verified to be within getDraftsBase() to
  * prevent path traversal attacks.
@@ -27,6 +31,7 @@ export async function GET(
   { params }: { params: { runId: string } },
 ): Promise<Response> {
   const { runId } = params;
+  const download = new URL(req.url).searchParams.get('download') === '1';
 
   // Dynamic imports: defers module resolution to handler invocation time
   const { sessionStore } = await import('@/lib/session-store');
@@ -87,13 +92,13 @@ export async function GET(
       : 'benefits-preparation-worksheet-draft.pdf';
 
   return new Response(new Uint8Array(pdfBuffer), {
-  status: 200,
-  headers: {
-    'Content-Type': 'application/pdf',
-    'Content-Disposition': `attachment; filename="${filename}"`,
-    'Content-Length': String(pdfBuffer.length),
-    'Cache-Control': 'private, no-store',
-    'X-Correlation-Id': runId,
-  },
-});
+    status: 200,
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="${filename}"`,
+      'Content-Length': String(pdfBuffer.length),
+      'Cache-Control': 'private, no-store',
+      'X-Correlation-Id': runId,
+    },
+  });
 }
