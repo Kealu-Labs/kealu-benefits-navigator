@@ -28,9 +28,9 @@ import { NextResponse } from 'next/server';
  */
 export async function GET(
   req: Request,
-  { params }: { params: { runId: string } },
+  { params }: { params: Promise<{ runId: string }> },
 ): Promise<Response> {
-  const { runId } = params;
+  const { runId } = await params;
   const download = new URL(req.url).searchParams.get('download') === '1';
 
   // Dynamic imports: defers module resolution to handler invocation time

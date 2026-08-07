@@ -25,9 +25,9 @@ import { NextResponse } from 'next/server';
  */
 export async function GET(
   req: Request,
-  { params }: { params: { runId: string } },
+  { params }: { params: Promise<{ runId: string }> },
 ): Promise<Response> {
-  const { runId } = params;
+  const { runId } = await params;
 
   // Dynamic imports: defers module resolution to handler invocation time
   const { sessionStore } = await import('@/lib/session-store');
