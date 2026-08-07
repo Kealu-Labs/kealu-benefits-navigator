@@ -22,4 +22,16 @@ def format_intake_question(field: dict) -> str:
         "",
         f"Example: {field['example']}",
     ]
+    if field.get("key"):
+        skip_hint = (
+            ""
+            if field.get("required") == "true"
+            else ' (or "skip" to leave it blank)'
+        )
+        lines += [
+            "",
+            f"When calling this tool again, pass the applicant's answer as "
+            f"the `{field['key']}` argument{skip_hint}, along with all "
+            f"previously collected answers.",
+        ]
     return "\n".join(lines)

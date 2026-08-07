@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from benefits_navigator.applications.models import ApplicationProfile
+from benefits_navigator.applications.models import ApplicationProfile, is_skip_sentinel
 
 # ---------------------------------------------------------------------------
 # Field definitions — ordered list surfaced one-at-a-time during intake
@@ -107,9 +107,18 @@ def check_ca_readiness(profile: ApplicationProfile) -> list[dict[str, str]]:
 
 
 def get_next_ca_field(profile: ApplicationProfile) -> dict[str, str] | None:
-    """Return the next unanswered CA intake field, or None when all are answered."""
+    """Return the next unanswered CA intake field, or None when all are answered.
+
+    An optional field counts as answered when the applicant declines it with a
+    skip sentinel ("skip", "none", ...); a required field does not, so it is
+    asked again rather than shipping a blank on the form.
+    """
     for field in CA_APPLICATION_FIELDS:
         value = str(getattr(profile, field["key"], "") or "").strip()
+        if is_skip_sentinel(value):
+            if field["required"] == "true":
+                return field
+            continue
         if not value:
             return field
     return None
@@ -128,7 +137,12 @@ def format_ca_review_summary(profile: ApplicationProfile) -> str:
     ]
     for field in CA_APPLICATION_FIELDS:
         value = str(getattr(profile, field["key"], "") or "").strip()
-        display = value if value else "*(not provided)*"
+        if is_skip_sentinel(value):
+            display = "*(skipped — will be left blank)*"
+        elif value:
+            display = value
+        else:
+            display = "*(not provided)*"
         lines.append(f"| {field['label']} | {display} |")
 
     zip_display = profile.home_zip or "*(not provided)*"

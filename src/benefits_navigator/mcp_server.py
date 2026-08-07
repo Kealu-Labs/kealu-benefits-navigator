@@ -328,6 +328,48 @@ _TOOLS = [
                         "of immediately generating the PDF."
                     ),
                 },
+                "applicant_name": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's full legal name, collected during the "
+                        "structured intake. Re-send every previously collected "
+                        "intake answer on each call."
+                    ),
+                },
+                "phone_home": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's phone number from intake. Pass 'skip' if "
+                        "the applicant declined to provide one."
+                    ),
+                },
+                "home_address": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's street address (no city/ZIP) from intake. "
+                        "Pass 'skip' if declined."
+                    ),
+                },
+                "home_city": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's city from intake. Pass 'skip' if declined."
+                    ),
+                },
+                "email": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's email address from intake. Pass 'skip' if "
+                        "declined."
+                    ),
+                },
+                "language_speak": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's primary spoken language from intake. Pass "
+                        "'skip' if declined."
+                    ),
+                },
             },
             "required": ["household_profile", "workflow_output"],
         },
@@ -1610,12 +1652,31 @@ def _run_generate_application_draft(args: dict[str, Any]) -> str:
                 return adapter.review_summary(profile)
 
             # Step 4: User confirmed — generate application documents.
-            path, _form_type = adapter.generate_documents(profile, workflow_output, None)
+            path, form_type = adapter.generate_documents(profile, workflow_output, None)
+            if form_type == "official":
+                return (
+                    f"Official {adapter.display_name} filled successfully.\n\n"
+                    f"**Form:** Pre-filled {adapter.display_name}\n"
+                    f"**File:** `{path}`\n\n"
+                    + adapter.submission_instructions(profile)
+                )
+            # The official template could not be filled (e.g. pypdf missing or
+            # template unreadable) and the generator fell back to a worksheet.
+            # Never present that fallback as the official form.
             return (
-                f"Official {adapter.display_name} filled successfully.\n\n"
-                f"**Form:** Pre-filled {adapter.display_name}\n"
+                f"Application Preparation Worksheet generated.\n\n"
                 f"**File:** `{path}`\n\n"
-                + adapter.submission_instructions(profile)
+                f"The official {adapter.display_name} could not be filled on "
+                f"this system, so a preparation worksheet was generated "
+                f"instead. It is NOT the official form — use it as a "
+                f"reference when completing the official application.\n\n"
+                f"**Next steps for the applicant:**\n"
+                f"1. Open the PDF and review all pre-filled information\n"
+                f"2. Obtain the official form from your county office or "
+                f"state portal\n"
+                f"3. Use the worksheet to fill in the official application\n\n"
+                f"*This is a DRAFT — verify all information before "
+                f"submitting.*"
             )
 
         # -------------------------------------------------------------------- #

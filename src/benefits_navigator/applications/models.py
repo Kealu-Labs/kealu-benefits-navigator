@@ -10,6 +10,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Values an applicant may give to decline an optional intake question.
+# Stored verbatim on the profile so intake knows the question was answered,
+# but converted to blank before any value reaches a generated form.
+SKIP_SENTINELS: frozenset[str] = frozenset({"skip", "none", "n/a", "na"})
+
+
+def is_skip_sentinel(value: str) -> bool:
+    """True when *value* is an explicit decline-to-answer sentinel."""
+    return value.strip().lower() in SKIP_SENTINELS
+
 
 @dataclass
 class ApplicationProfile:
@@ -81,27 +91,35 @@ class ApplicationProfile:
         )
 
     def to_args(self) -> dict[str, Any]:
-        """Convert back to a flat args dict for compatibility with form_filler."""
+        """Convert back to a flat args dict for compatibility with form_filler.
+
+        Skip sentinels (e.g. an applicant answering "skip" to an optional
+        question) are converted to blanks so they never appear on a form.
+        """
+
+        def _clean(value: str) -> str:
+            return "" if is_skip_sentinel(value) else value
+
         return {
-            "applicant_name": self.applicant_name,
-            "name": self.applicant_name,
-            "phone_home": self.phone_home,
-            "email": self.email,
-            "home_address": self.home_address,
-            "home_city": self.home_city,
+            "applicant_name": _clean(self.applicant_name),
+            "name": _clean(self.applicant_name),
+            "phone_home": _clean(self.phone_home),
+            "email": _clean(self.email),
+            "home_address": _clean(self.home_address),
+            "home_city": _clean(self.home_city),
             "state": self.home_state,
             "home_state": self.home_state,
             "zip_code": self.home_zip,
             "home_zip": self.home_zip,
             "county": self.home_county,
             "home_county": self.home_county,
-            "mailing_address": self.mailing_address,
-            "mailing_city": self.mailing_city,
+            "mailing_address": _clean(self.mailing_address),
+            "mailing_city": _clean(self.mailing_city),
             "mailing_state": self.mailing_state,
             "mailing_zip": self.mailing_zip,
-            "mailing_county": self.mailing_county,
-            "language_speak": self.language_speak,
-            "language_read": self.language_read,
+            "mailing_county": _clean(self.mailing_county),
+            "language_speak": _clean(self.language_speak),
+            "language_read": _clean(self.language_read),
             "apply_calfresh": self.apply_calfresh,
             "apply_medical": self.apply_medical,
             "apply_calworks": self.apply_calworks,
