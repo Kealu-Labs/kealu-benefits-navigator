@@ -68,6 +68,12 @@ interface ActiveRun {
    * Cleared by addController() if a new client reconnects before the delay fires.
    */
   orphanTimer?: ReturnType<typeof setTimeout>;
+  /**
+   * True once a terminal event (error, or action-plan phase_complete) has been
+   * broadcast. When the process exits without one, the close handler emits a
+   * synthetic error so browsers are never left on "Running…" forever.
+   */
+  sawTerminal?: boolean;
 }
 
 /** Map of runId → ActiveRun for all in-progress workflow runs. */
@@ -97,25 +103,45 @@ function _processLine(
   line: string,
   broadcast: (payload: string) => void,
 ): void {
-  if (line.includes('failed:') || line.includes('Rate limit rejected')) {
-    const errorEvent: PhaseEvent = {
-      event_type: 'error',
-      phase: line.match(/Phase '([^']+)' failed/)?.[1],
-      message: line,
-    };
-  
-    const id = `${runId}-${Date.now()}`;
-    broadcast(formatSseEvent(errorEvent, id));
+  if (!line) return;
+
+  if (line.startsWith('[PHASE_STREAM] ')) {
+    const jsonStr = line.slice('[PHASE_STREAM] '.length);
+    try {
+      const event: PhaseEvent = JSON.parse(jsonStr);
+      _markIfTerminal(runId, event);
+      const id = `${runId}-${Date.now()}`;
+      broadcast(formatSseEvent(event, id));
+    } catch {
+      // Malformed JSON — silently drop to avoid disconnecting clients
+    }
     return;
   }
-  if (!line || !line.startsWith('[PHASE_STREAM] ')) return;
-  const jsonStr = line.slice('[PHASE_STREAM] '.length);
-  try {
-    const event: PhaseEvent = JSON.parse(jsonStr);
+
+  // Non-stream stdout: sniff kvr's plain-text failure lines only. Anchored so
+  // an incidental "failed:" inside ordinary output is not rebroadcast as an
+  // error banner.
+  const phaseFailure = line.match(/^Phase '([^']+)' failed/);
+  if (phaseFailure || line.includes('Rate limit rejected')) {
+    const errorEvent: PhaseEvent = {
+      event_type: 'error',
+      phase: phaseFailure?.[1],
+      message: line,
+    };
+    _markIfTerminal(runId, errorEvent);
     const id = `${runId}-${Date.now()}`;
-    broadcast(formatSseEvent(event, id));
-  } catch {
-    // Malformed JSON — silently drop to avoid disconnecting clients
+    broadcast(formatSseEvent(errorEvent, id));
+  }
+}
+
+/** Record that a terminal event reached clients for this run. */
+function _markIfTerminal(runId: string, event: PhaseEvent): void {
+  if (
+    event.event_type === 'error' ||
+    (event.event_type === 'phase_complete' && event.phase === 'action-plan')
+  ) {
+    const run = activeRuns.get(runId);
+    if (run) run.sawTerminal = true;
   }
 }
 
@@ -242,8 +268,23 @@ export function startRun(
 
   // Delay termination by 2 s to let in-flight stdout lines reach their readline
   // handler before we remove the run from activeRuns and close controllers.
-  proc.on('close', (_code, _signal) => {
-    setTimeout(() => terminateRun(runId), 2000);
+  proc.on('close', (code, signal) => {
+    setTimeout(() => {
+      const closing = activeRuns.get(runId);
+      // If the process died without ever telling clients (no error event, no
+      // action-plan completion), synthesize an error so the UI does not sit on
+      // "Running…" until the idle timeout that terminateRun is about to clear.
+      if (closing && !closing.sawTerminal) {
+        const errorEvent: PhaseEvent = {
+          event_type: 'error',
+          message: `Workflow process exited unexpectedly (${
+            signal ? `signal ${signal}` : `code ${code ?? 'unknown'}`
+          }). Please try again.`,
+        };
+        broadcastToRun(runId, formatSseEvent(errorEvent, `${runId}-exit`));
+      }
+      terminateRun(runId);
+    }, 2000);
   });
 }
 
@@ -266,6 +307,17 @@ export function terminateRun(runId: string): void {
   } catch {
     // Ignore if already dead
   }
+
+  // Close any still-connected SSE streams so browser EventSources terminate
+  // instead of being kept alive indefinitely by route-level keepalive pings.
+  for (const ctrl of run.controllers) {
+    try {
+      ctrl.close();
+    } catch {
+      // Controller already closed — ignore
+    }
+  }
+  run.controllers.clear();
 
   sessionRunMap.delete(run.sessionId);
   activeRuns.delete(runId);

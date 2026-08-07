@@ -26,7 +26,7 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Benefits Navigator',
   description:
-    'Find health coverage and benefit programs for your household —-no account required.',
+    'Find health coverage and benefit programs for your household — no account required.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

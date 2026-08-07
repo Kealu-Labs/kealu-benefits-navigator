@@ -49,13 +49,17 @@ function writeLocaleCookie(locale: Locale): void {
  * Region subtags are stripped ('en-US' → 'en').
  */
 export function detectBrowserLocale(): Locale {
-  // Manual override stored by setLocale wins over auto-detection.
-  if (typeof localStorage !== 'undefined') {
+  // Manual override stored by setLocale wins over auto-detection. Guarded with
+  // try/catch: browsers with storage blocked throw SecurityError on any
+  // localStorage access (including the typeof check's getter in Chromium).
+  try {
     const stored = localStorage.getItem(STORAGE_KEY);
 
     if (stored && (SUPPORTED_LOCALES as readonly string[]).includes(stored)) {
       return stored as Locale;
     }
+  } catch {
+    // Storage unavailable — fall through to browser-language detection.
   }
 
   // Auto-detect from browser language.
@@ -115,7 +119,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [locale]);
 
   function setLocale(newLocale: Locale) {
-    localStorage.setItem(STORAGE_KEY, newLocale);
+    try {
+      localStorage.setItem(STORAGE_KEY, newLocale);
+    } catch {
+      // Storage blocked — the cookie below still persists the choice.
+    }
     // Mirror to cookie so server component reads the updated locale on next request.
     writeLocaleCookie(newLocale);
     setLocaleState(newLocale);
