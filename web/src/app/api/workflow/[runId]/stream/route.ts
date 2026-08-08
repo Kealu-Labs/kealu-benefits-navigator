@@ -4,7 +4,7 @@
 //
 
 import { cookies } from 'next/headers';
-import { addController, removeController } from '@/lib/kvr-runner';
+import { activeRuns, addController, formatSseEvent, removeController } from '@/lib/kvr-runner';
 
 // Disable Next.js route handler timeout for the SSE streaming endpoint.
 // KVR workflows can run for up to 30 minutes; the default platform timeout
@@ -62,6 +62,25 @@ export async function GET(
       // Send initial keepalive comment (prevents proxy buffering)
       controller.enqueue(encoder.encode(': keepalive\n\n'));
 
+      // Stale run: the session still references this runId, but the run has
+      // already terminated (page reload after completion/error). Without a
+      // terminal signal the browser would hang on keepalives forever.
+      if (!activeRuns.has(runId)) {
+        controller.enqueue(
+          encoder.encode(
+            formatSseEvent(
+              {
+                event_type: 'error',
+                message: 'This workflow run has ended. Please start a new search.',
+              },
+              `${runId}-stale`,
+            ),
+          ),
+        );
+        controller.close();
+        return;
+      }
+
       // Register controller to receive broadcast events from kvr-runner
       addController(runId, controller);
 
@@ -70,7 +89,13 @@ export async function GET(
         try {
           controller.enqueue(encoder.encode(': keepalive\n\n'));
         } catch {
-          // Controller closed
+          // Controller closed server-side (run terminated) — stop pinging so
+          // the interval and its closure are not leaked for the process
+          // lifetime.
+          if (pingTimer !== undefined) {
+            clearInterval(pingTimer);
+            pingTimer = undefined;
+          }
         }
       }, KEEPALIVE_INTERVAL_MS);
     },

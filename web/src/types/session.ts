@@ -90,6 +90,13 @@ export interface ChatMessage {
   content: string;
   /** Unix timestamp in milliseconds (Date.now()). */
   timestamp: number;
+  /**
+   * For user messages: the intake field key that was pending when this
+   * message was recorded (i.e. the question it answered). Used by duplicate
+   * detection so the same answer to two different questions is never treated
+   * as a resubmission. Absent on assistant messages and legacy sessions.
+   */
+  answeredField?: string;
 }
 
 /**

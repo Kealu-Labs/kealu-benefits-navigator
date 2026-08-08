@@ -271,6 +271,32 @@ describe('isIdempotentSubmission()', () => {
     expect(isIdempotentSubmission([], 'My ZIP is 77001')).toBe(false);
   });
 
+  it('accepts the same answer to the NEXT question even within the 5s window', () => {
+    // "none" answered medications 2s ago; the server has moved on to
+    // providers. A fast typist's second "none" is new input, not a duplicate.
+    const messages = [
+      {
+        role: 'user' as const,
+        content: 'none',
+        timestamp: Date.now() - 2_000,
+        answeredField: 'medications',
+      },
+    ];
+    expect(isIdempotentSubmission(messages, 'none', 'providers')).toBe(false);
+  });
+
+  it('still suppresses a rapid duplicate for the SAME question', () => {
+    const messages = [
+      {
+        role: 'user' as const,
+        content: 'none',
+        timestamp: Date.now() - 500,
+        answeredField: 'medications',
+      },
+    ];
+    expect(isIdempotentSubmission(messages, 'none', 'medications')).toBe(true);
+  });
+
   it('accepts the same answer to a later question (regression: "none" deadlock)', () => {
     // "none" was answered to the medications question; the providers question
     // also suggests "none". The second "none" must NOT be swallowed.

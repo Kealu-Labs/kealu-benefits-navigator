@@ -10,8 +10,8 @@ import type { HouseholdVars } from '@/types/session';
 import type { PhaseEvent } from '@/types/session';
 import { resolveKvr } from '@/lib/kvr-checker';
 
-/** Idle timeout: 10 minutes with no subprocess output or phase event. */
-export const IDLE_TIMEOUT_MS = 1_800_000; // 30 minutes
+/** Idle timeout: 30 minutes with no subprocess output or phase event. */
+export const IDLE_TIMEOUT_MS = 1_800_000;
 
 /** Delay before SIGTERM when last SSE controller disconnects. */
 export const SIGTERM_DELAY_MS = 60_000;
@@ -249,6 +249,27 @@ export function startRun(
   });
 
   console.log(JSON.stringify({ level: 'info', event: 'kvr_spawned', runId, pid: proc.pid }));
+
+  // Without an 'error' listener, a spawn failure after resolveKvr() succeeded
+  // (EACCES, ENOEXEC, binary removed in the race window) raises an uncaught
+  // 'error' event that crashes the whole server — and 'close' never fires, so
+  // the run would also be stranded in the registry.
+  proc.on('error', (err: NodeJS.ErrnoException) => {
+    console.log(
+      JSON.stringify({
+        level: 'error',
+        event: 'kvr_spawn_error',
+        runId,
+        code: err.code ?? err.name,
+      }),
+    );
+    const errorEvent: PhaseEvent = {
+      event_type: 'error',
+      message: 'Workflow process could not be started. Please try again.',
+    };
+    broadcastToRun(runId, formatSseEvent(errorEvent, `${runId}-spawn-error`));
+    terminateRun(runId);
+  });
 
   const idleTimer = setInterval(() => {
     const run = activeRuns.get(runId);

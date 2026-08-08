@@ -273,19 +273,29 @@ export const DUPLICATE_SUBMISSION_WINDOW_MS = 5_000;
 
 /**
  * Returns true when *content* is an accidental resubmission: it matches the
- * most recent user message and arrived within DUPLICATE_SUBMISSION_WINDOW_MS
- * of it.
+ * most recent user message, arrived within DUPLICATE_SUBMISSION_WINDOW_MS of
+ * it, and is answering the SAME pending question that message answered.
  *
- * Only the latest user message is considered, and only briefly — several
- * intake questions legitimately share the same answer (e.g. the suggested
- * "none" for both medications and providers), so an older identical message
- * must not swallow a new answer.
+ * The pending-field comparison is what lets several intake questions share
+ * the same legitimate answer (e.g. the suggested "none" for both medications
+ * and providers) even when typed in quick succession: once the server has
+ * moved on to the next question, an identical answer is new input, not a
+ * duplicate. Messages recorded before answeredField stamping existed fall
+ * back to the content+time check alone.
  */
-export function isIdempotentSubmission(messages: ChatMessage[], content: string): boolean {
+export function isIdempotentSubmission(
+  messages: ChatMessage[],
+  content: string,
+  pendingField?: string,
+): boolean {
   const normalized = content.trim();
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser || lastUser.content.trim() !== normalized) return false;
-  return Date.now() - lastUser.timestamp < DUPLICATE_SUBMISSION_WINDOW_MS;
+  if (Date.now() - lastUser.timestamp >= DUPLICATE_SUBMISSION_WINDOW_MS) return false;
+  if (lastUser.answeredField !== undefined && pendingField !== undefined) {
+    return lastUser.answeredField === pendingField;
+  }
+  return true;
 }
 
 /**

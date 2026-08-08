@@ -102,13 +102,13 @@ describe('GET /api/workflow/[runId]/report', () => {
 
   it('returns HTTP 403 when session.runId does not match path runId', async () => {
     const req = makeReportRequest('different-run-id', TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: 'different-run-id' } });
+    const res = await GET(req, { params: Promise.resolve({ runId: 'different-run-id' }) });
     expect(res.status).toBe(403);
   });
 
   it('returns HTTP 403 when session cookie is absent', async () => {
     const req = makeReportRequest(TEST_RUN_ID); // no cookie
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(403);
   });
 
@@ -118,7 +118,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockRejectedValue({ code: 'RUN_DIR_MISSING' });
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(422);
     const body = await res.json();
@@ -131,7 +131,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockRejectedValue({ code: 'INCOMPLETE', missingPhases });
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(422);
     const body = await res.json();
@@ -144,7 +144,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -156,7 +156,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.headers.get('x-correlation-id')).toBe(TEST_RUN_ID);
   });
@@ -165,7 +165,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    await GET(req, { params: { runId: TEST_RUN_ID } });
+    await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(mockDeleteRunDir).toHaveBeenCalledOnce();
   });
@@ -176,12 +176,12 @@ describe('GET /api/workflow/[runId]/report', () => {
     // First call assembles and caches
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
     const req1 = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res1 = await GET(req1, { params: { runId: TEST_RUN_ID } });
+    const res1 = await GET(req1, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res1.status).toBe(200);
 
     // Second call should use cache — assembleReport NOT called again
     const req2 = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res2 = await GET(req2, { params: { runId: TEST_RUN_ID } });
+    const res2 = await GET(req2, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res2.status).toBe(200);
     // deleteRunDir should only have been called once (first fetch)
@@ -194,12 +194,12 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    await GET(req, { params: { runId: TEST_RUN_ID } });
+    await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     // Verify session status is now 'complete' by making a second request
     // that uses the cache (which confirms session was updated)
     const req2 = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res2 = await GET(req2, { params: { runId: TEST_RUN_ID } });
+    const res2 = await GET(req2, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res2.status).toBe(200);
   });
 });

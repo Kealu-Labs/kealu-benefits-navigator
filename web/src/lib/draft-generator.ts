@@ -142,6 +142,13 @@ export async function generateDraft(
       stderr += chunk.toString();
     });
 
+    // EPIPE guard: if the helper exits before consuming stdin (e.g. an import
+    // failure exits immediately), the write emits a stream 'error' that would
+    // otherwise be an uncaught exception. The 'close' handler still reports
+    // the non-zero exit, so a swallowed write error degrades to draft=null.
+    child.stdin?.on('error', () => {
+      // Intentionally ignored — see comment above.
+    });
     child.stdin?.write(stdinPayload);
     child.stdin?.end();
 

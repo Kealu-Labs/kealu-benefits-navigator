@@ -175,13 +175,21 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // ── Message mode ──────────────────────────────────────────────────────────
-  // Idempotency: identical message re-POST (e.g., browser back button) is a no-op
-  // so that history does not accumulate duplicate entries.
-  if (!isIdempotentSubmission(session.messages, message)) {
+  // Idempotency: identical rapid re-POST of the same answer to the SAME
+  // question is a no-op so that history does not accumulate duplicate
+  // entries. Each user message is stamped with the question it answered so a
+  // repeated answer to a *different* question (e.g. "none" to medications and
+  // then to providers) is never swallowed.
+  if (!isIdempotentSubmission(session.messages, message, session.pendingField)) {
     sessionStore.update(sessionId, {
       messages: [
         ...session.messages,
-        { role: 'user', content: message, timestamp: Date.now() },
+        {
+          role: 'user',
+          content: message,
+          timestamp: Date.now(),
+          answeredField: session.pendingField,
+        },
       ],
     });
     session = sessionStore.get(sessionId)!;

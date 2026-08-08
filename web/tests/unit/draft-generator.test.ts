@@ -56,6 +56,7 @@ function makeMockProcess(options: {
       }),
     },
     stdin: {
+      on: vi.fn(),
       write: vi.fn(),
       end: vi.fn(),
     },

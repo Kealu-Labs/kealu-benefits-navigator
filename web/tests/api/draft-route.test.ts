@@ -91,13 +91,13 @@ describe('GET /api/workflow/[runId]/draft', () => {
 
   it('returns HTTP 403 when session cookie is absent', async () => {
     const req = makeDraftRequest(TEST_RUN_ID); // no cookie
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(403);
   });
 
   it('returns HTTP 403 when session.runId does not match path runId', async () => {
     const req = makeDraftRequest('different-run-id', TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: 'different-run-id' } });
+    const res = await GET(req, { params: Promise.resolve({ runId: 'different-run-id' }) });
     expect(res.status).toBe(403);
   });
 
@@ -108,7 +108,7 @@ describe('GET /api/workflow/[runId]/draft', () => {
     sessionStore.update(TEST_SESSION_ID, { draftPath: null });
 
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(404);
   });
 
@@ -116,7 +116,7 @@ describe('GET /api/workflow/[runId]/draft', () => {
     mockStat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
 
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(404);
   });
 
@@ -128,7 +128,7 @@ describe('GET /api/workflow/[runId]/draft', () => {
     sessionStore.update(TEST_SESSION_ID, { draftPath: '/etc/passwd' });
 
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(403);
   });
 
@@ -136,14 +136,14 @@ describe('GET /api/workflow/[runId]/draft', () => {
 
   it('returns HTTP 200 with application/pdf content-type', async () => {
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/pdf');
   });
 
   it('Content-Disposition includes official form filename for draftFormType official', async () => {
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     const cd = res.headers.get('content-disposition') ?? '';
     expect(cd).toContain('partially-prefilled-SAWS-1-draft.pdf');
   });
@@ -153,20 +153,20 @@ describe('GET /api/workflow/[runId]/draft', () => {
     sessionStore.update(TEST_SESSION_ID, { draftFormType: 'worksheet' });
 
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     const cd = res.headers.get('content-disposition') ?? '';
     expect(cd).toContain('benefits-preparation-worksheet-draft.pdf');
   });
 
   it('X-Correlation-Id header equals the runId', async () => {
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.headers.get('x-correlation-id')).toBe(TEST_RUN_ID);
   });
 
   it('response body is the PDF buffer', async () => {
     const req = makeDraftRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     const body = await res.arrayBuffer();
     const bodyBuf = Buffer.from(body);
     expect(bodyBuf.equals(FAKE_PDF)).toBe(true);
