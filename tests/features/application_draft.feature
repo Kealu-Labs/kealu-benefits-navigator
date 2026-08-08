@@ -31,3 +31,12 @@ Feature: Application Draft PDF Generation
     Then the PDF text contains "77001"
     And the PDF text contains "42,000"
     And the PDF text contains "DRAFT"
+
+  Scenario: SSN field is left blank for the applicant to complete
+    Given a household profile "Single parent making $42k with two kids ages 4 and 9"
+    And the zip code is "77001"
+    And generic workflow output
+    When the PDF is generated and read back
+    Then the PDF text contains "SSN: ____-____-________"
+    And the PDF text contains "do NOT pre-fill"
+    And the PDF text does not contain a filled SSN pattern

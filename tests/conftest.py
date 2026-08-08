@@ -3,16 +3,34 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+import logging
 from unittest.mock import MagicMock
 
 import pytest
 
-from benefits_navigator.mcp_server import (
-    _check_intake_completeness,
-    _execute_tool,
-    _handle_request,
-)
+import benefits_navigator.mcp_server as mcp_mod
+
+
+def _parse_audit_record(record) -> dict | None:
+    """Parse a log record as an audit event.
+
+    Non-AUDIT lines are skipped — returns None.
+    An AUDIT-prefixed line that fails JSON parsing indicates a serialization
+    bug in _audit_log and fails the test immediately via pytest.fail.
+    """
+    msg = record.getMessage()
+    if not msg.startswith("AUDIT "):
+        return None
+    try:
+        return json.loads(msg[len("AUDIT ") :])
+    except json.JSONDecodeError:
+        pytest.fail(f"AUDIT-prefixed log line is not valid JSON: {msg!r}")
+
+
+def _parse_audit_records(records: list) -> list[dict]:
+    """Parse a list of log records into audit-event dicts, skipping non-audit lines."""
+    return [e for r in records if (e := _parse_audit_record(r)) is not None]
+
 
 # ---------------------------------------------------------------------------
 # Demo household profile — single parent, Harris County TX
@@ -145,6 +163,60 @@ def build_decision_jsonl(phase_outputs: dict[str, str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+@pytest.fixture(autouse=True)
+def _guard_unexpected_log_output(request):
+    """Fail the test if it emits WARNING or ERROR log records that are not asserted.
+
+    Two opt-outs:
+    1. Add ``@pytest.mark.allow_log_output`` with an inline justification — use when the
+       warning is an expected side effect of the setup, not the behavior under test.
+    2. Include ``caplog`` in the test's fixture list and assert on ``caplog.records`` —
+       use when the log output is part of the behavior under test.
+    """
+    if request.node.get_closest_marker("allow_log_output"):
+        yield
+        return
+    if "caplog" in request.fixturenames:
+        yield
+        return
+
+    class _CapturingHandler(logging.Handler):
+        def __init__(self):
+            super().__init__(level=logging.WARNING)
+            self.records: list[logging.LogRecord] = []
+
+        def emit(self, record: logging.LogRecord) -> None:
+            self.records.append(record)
+
+    handler = _CapturingHandler()
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    try:
+        yield
+    finally:
+        root_logger.removeHandler(handler)
+
+    if handler.records:
+        lines = [
+            f"  [{r.levelname}] {r.name}: {r.getMessage()}" for r in handler.records
+        ]
+        pytest.fail(
+            "Test emitted unexpected WARNING/ERROR log records. "
+            "Either assert them via caplog or add "
+            "@pytest.mark.allow_log_output with an inline justification.\n"
+            + "\n".join(lines)
+        )
+
+
+@pytest.fixture(autouse=True)
+def _reset_mcp_session():
+    """Reset _SESSION to defaults before/after each test for order-independence."""
+    # .update() mutates in place; reassignment would break mcp_server's reference to this dict
+    mcp_mod._SESSION.update(mcp_mod._SESSION_DEFAULTS)
+    yield
+    mcp_mod._SESSION.update(mcp_mod._SESSION_DEFAULTS)
+
+
 @pytest.fixture
 def demo_profile():
     """The demo household profile (tier-1 complete)."""
@@ -203,10 +275,14 @@ def mock_kvr(tmp_path, monkeypatch):
             for phase_name, output in self.phase_outputs.items():
                 md_path = log_dir / f"{phase_name}.md"
                 md_path.write_text(output)
-                decision_lines.append(json.dumps({
-                    "decision_type": "phase_complete",
-                    "phase": phase_name,
-                }))
+                decision_lines.append(
+                    json.dumps(
+                        {
+                            "decision_type": "phase_complete",
+                            "phase": phase_name,
+                        }
+                    )
+                )
             (log_dir / "decision.jsonl").write_text("\n".join(decision_lines) + "\n")
 
             result = MagicMock()
@@ -218,8 +294,6 @@ def mock_kvr(tmp_path, monkeypatch):
     mock = KvrMock()
 
     # Patch subprocess.run inside the mcp_server module
-    import benefits_navigator.mcp_server as mcp_mod
-
     original_run = mcp_mod._run_benefits_navigator
 
     def patched_run_benefits_navigator(args, *, progress_token=None):
@@ -230,6 +304,8 @@ def mock_kvr(tmp_path, monkeypatch):
         monkeypatch.setattr("pathlib.Path.cwd", lambda: tmp_path)
         return original_run(args, progress_token=progress_token)
 
-    monkeypatch.setattr(mcp_mod, "_run_benefits_navigator", patched_run_benefits_navigator)
+    monkeypatch.setattr(
+        mcp_mod, "_run_benefits_navigator", patched_run_benefits_navigator
+    )
 
     return mock

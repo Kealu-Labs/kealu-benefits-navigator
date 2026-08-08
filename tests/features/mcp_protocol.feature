@@ -51,3 +51,41 @@ Feature: MCP Protocol Compliance
   Scenario: Ping returns empty result
     When the server receives a "ping" request with id 42
     Then the response result is empty
+
+  Scenario: Initialize captures session identity for audit attribution
+    When the server receives an "initialize" request with clientInfo name "antigravity" version "1.2.3"
+    And an audit event is triggered by calling an unknown tool
+    Then the audit actor is "antigravity 1.2.3"
+    And the audit session id matches the 12-char hex format
+
+  Scenario: Hostile clientInfo actor is sanitized in audit events
+    When the server is initialized with a hostile clientInfo name
+    And an audit event is triggered by calling an unknown tool
+    Then the audit actor contains only printable characters
+    And the audit actor is at most 128 characters long
+    And the audit actor preserves the printable substring "evilloginject"
+
+  Scenario: Non-ASCII audit content is escaped to ASCII in the raw log line
+    When the server is initialized with a non-ASCII homoglyph clientInfo name
+    And an audit event is triggered by calling an unknown tool
+    Then every raw audit log line is pure ASCII
+    And the raw audit log escapes the homoglyph as a unicode sequence
+
+  Scenario: Tool call before initialize logs a pre-initialization warning
+    Given the session has not been initialized
+    When an audit event is triggered by calling an unknown tool
+    Then a pre-initialization warning is logged
+
+  Scenario Outline: Non-dict clientInfo does not crash the initialize handler
+    When the server receives an "initialize" request with a non-dict clientInfo of type "<kind>"
+    And an audit event is triggered by calling an unknown tool
+    Then the response includes serverInfo name "benefits-navigator"
+    And the audit actor is "unknown"
+
+    Examples:
+      | kind    |
+      | string  |
+      | list    |
+      | integer |
+      | null    |
+      | boolean |

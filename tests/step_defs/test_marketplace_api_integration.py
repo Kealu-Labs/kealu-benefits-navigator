@@ -97,11 +97,19 @@ def live_county_fips(zip_code):
     return ctx
 
 
-@when(parsers.parse("live eligibility is estimated for income {income:d} with {n:d} people"))
+@when(
+    parsers.parse(
+        "live eligibility is estimated for income {income:d} with {n:d} people"
+    )
+)
 def live_estimate(ctx, income, n):
-    people = [{"age": 35, "gender": "Female", "uses_tobacco": False, "is_pregnant": False}]
+    people = [
+        {"age": 35, "gender": "Female", "uses_tobacco": False, "is_pregnant": False}
+    ]
     for _ in range(n - 1):
-        people.append({"age": 8, "gender": "Male", "uses_tobacco": False, "is_pregnant": False})
+        people.append(
+            {"age": 8, "gender": "Male", "uses_tobacco": False, "is_pregnant": False}
+        )
     ctx.eligibility_result = estimate_eligibility(
         income, people, ctx.state, ctx.fips, "77001"
     )
@@ -162,7 +170,11 @@ def check_live_plan_count(ctx, n):
 def check_live_plan_fields(ctx):
     for plan in ctx.plan_result.get("plans", []):
         assert plan.get("name"), f"Plan missing name: {plan.get('id')}"
-        assert plan.get("issuer", {}).get("name"), f"Plan missing issuer: {plan.get('id')}"
+        assert plan.get("issuer", {}).get("name"), (
+            f"Plan missing issuer: {plan.get('id')}"
+        )
         assert plan.get("metal_level"), f"Plan missing metal_level: {plan.get('id')}"
         assert "premium" in plan, f"Plan missing premium: {plan.get('id')}"
-        assert "premium_w_credit" in plan, f"Plan missing premium_w_credit: {plan.get('id')}"
+        assert "premium_w_credit" in plan, (
+            f"Plan missing premium_w_credit: {plan.get('id')}"
+        )

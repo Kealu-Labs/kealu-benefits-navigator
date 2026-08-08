@@ -60,11 +60,16 @@ _INCOME_PATTERNS = [
 # Constants
 # ---------------------------------------------------------------------------
 
+# Domain / household constants
 MAX_HOUSEHOLD_SIZE = 20
 DEFAULT_ADULT_AGE = 30
 DEFAULT_CHILD_AGE = 8
 DEFAULT_INCOME = 30_000
 KVR_TIMEOUT = int(os.environ.get("KVR_TIMEOUT", "120"))
+
+# Audit / session-identity constants (used by _new_id and _sanitize_actor)
+_ID_LEN = 12
+_MAX_ACTOR_LEN = 128
 
 # ---------------------------------------------------------------------------
 # Tool definitions
@@ -314,8 +319,41 @@ _TOOLS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Utility helpers
+# ---------------------------------------------------------------------------
+
+
+def _new_id(length: int = _ID_LEN) -> str:
+    """Return a short random hex id (truncated uuid4)."""
+    return uuid.uuid4().hex[:length]
+
+
+def _sanitize_actor(text: str) -> str:
+    """Strip control chars (incl. CR/LF), collapse whitespace, bound length."""
+    cleaned = "".join(ch for ch in text if ch.isprintable())
+    cleaned = " ".join(cleaned.split())
+    return cleaned[:_MAX_ACTOR_LEN]
+
+
+# ---------------------------------------------------------------------------
 # Audit logging
 # ---------------------------------------------------------------------------
+
+# Session identity captured during the MCP initialize handshake, attached to
+# every audit event so actions can be attributed to a client/session.
+# _SESSION is mutated only by the ``initialize`` handler: each initialize
+# request (re)writes both keys, so a client that re-sends initialize starts a
+# fresh session identity.  Because ``main()`` processes stdin messages serially
+# in a single loop (see the ``for line in sys.stdin`` loop), reads and writes
+# never interleave and no lock is required.
+#
+# Security note: the actor identity is asserted by the client via
+# ``clientInfo`` and is NOT verified by the server — MCP stdio has no
+# transport-layer authentication.  Audit events therefore attribute actions to
+# the client-claimed identity; this is a limitation to note in any SOC 2
+# evidence package.
+_SESSION_DEFAULTS: dict[str, str] = {"actor": "unknown", "session_id": "none"}
+_SESSION: dict[str, str] = dict(_SESSION_DEFAULTS)
 
 
 def _audit_log(
@@ -334,9 +372,15 @@ def _audit_log(
         "resource": resource,
         "outcome": outcome,
         "correlation_id": correlation_id or "none",
+        "actor": _SESSION["actor"],
+        "session_id": _SESSION["session_id"],
     }
     if details:
         event["details"] = details
+    # json.dumps defaults to ensure_ascii=True, which escapes bidi/homoglyph and
+    # other non-ASCII control characters to \uXXXX sequences.  Combined with
+    # _sanitize_actor stripping non-printables, this neutralises terminal/log
+    # injection.  Do NOT switch to ensure_ascii=False without a replacement guard.
     logger.info("AUDIT %s", json.dumps(event, default=str))
 
 
@@ -363,27 +407,55 @@ def _resolve_kvr() -> str:
 _TOOL_DISPATCH: dict[str, Any] = {}  # populated after function definitions
 
 
-def _execute_tool(name: str, arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _execute_tool(
+    name: str, arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     """Execute a tool by name via dispatch table.
 
     Returns the workflow output as a string.
     """
-    corr_id = uuid.uuid4().hex[:12]
-    _audit_log("tool_call", name, "started", correlation_id=corr_id, details={"has_zip": bool(arguments.get("zip_code"))})
+    corr_id = _new_id()
+    if _SESSION["session_id"] == "none":
+        logger.warning(
+            "Tool %r invoked before initialize handshake — audit events will "
+            "carry session_id 'none' and actor 'unknown'",
+            name,
+        )
+    _audit_log(
+        "tool_call",
+        name,
+        "started",
+        correlation_id=corr_id,
+        details={"has_zip": bool(arguments.get("zip_code"))},
+    )
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
-        _audit_log("tool_call", name, "error", correlation_id=corr_id, details={"reason": "unknown_tool"})
+        _audit_log(
+            "tool_call",
+            name,
+            "error",
+            correlation_id=corr_id,
+            details={"reason": "unknown_tool"},
+        )
         return f"Unknown tool: {name}"
     try:
         result = handler(arguments, progress_token=progress_token)
         _audit_log("tool_call", name, "completed", correlation_id=corr_id)
         return result
     except Exception as e:
-        _audit_log("tool_call", name, "error", correlation_id=corr_id, details={"error": str(e)})
+        _audit_log(
+            "tool_call",
+            name,
+            "error",
+            correlation_id=corr_id,
+            details={"error_type": type(e).__name__},
+        )
         raise
 
 
-def _handle_navigate_benefits(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_navigate_benefits(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     if not arguments.get("skip_intake"):
         missing = _check_intake_completeness(arguments)
         if missing:
@@ -391,15 +463,21 @@ def _handle_navigate_benefits(arguments: dict[str, Any], *, progress_token: str 
     return _run_benefits_navigator(arguments, progress_token=progress_token)
 
 
-def _handle_check_eligibility(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_check_eligibility(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     return _run_eligibility_check(arguments)
 
 
-def _handle_compare_insurance(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_compare_insurance(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     return _run_insurance_comparison(arguments)
 
 
-def _handle_generate_application_draft(arguments: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _handle_generate_application_draft(
+    arguments: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     return _run_generate_application_draft(arguments)
 
 
@@ -591,7 +669,8 @@ def _check_intake_completeness(args: dict[str, Any]) -> str | None:
         )
 
     if not args.get("providers") and not any(
-        m in profile_lower for m in ["doctor", "dr.", "provider", "pediatrician", "physician"]
+        m in profile_lower
+        for m in ["doctor", "dr.", "provider", "pediatrician", "physician"]
     ):
         missing_recommended.append(
             (
@@ -693,12 +772,13 @@ def _format_intake_response(
     return "\n".join(lines)
 
 
-
-def _run_benefits_navigator(args: dict[str, Any], *, progress_token: str | None = None) -> str:
+def _run_benefits_navigator(
+    args: dict[str, Any], *, progress_token: str | None = None
+) -> str:
     """Run the full benefits-navigator workflow with optional progress streaming."""
     try:
         kvr = _resolve_kvr()
-        run_id = f"mcp-navigator-{uuid.uuid4().hex[:8]}"
+        run_id = f"mcp-navigator-{_new_id(8)}"
 
         cmd = [
             kvr,
@@ -751,11 +831,18 @@ def _run_benefits_navigator(args: dict[str, Any], *, progress_token: str | None 
         else:
             # Simple mode: wait for completion
             result = subprocess.run(
-                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                text=True, timeout=KVR_TIMEOUT,
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=KVR_TIMEOUT,
             )
             if result.returncode != 0:
-                logger.warning("kvr exited with code %d: %s", result.returncode, result.stderr[:500])
+                logger.warning(
+                    "kvr exited with code %d: %s",
+                    result.returncode,
+                    result.stderr[:500],
+                )
             returncode = result.returncode
 
         log_dir = Path.cwd() / ".workforce" / run_id
@@ -778,11 +865,15 @@ def _run_benefits_navigator(args: dict[str, Any], *, progress_token: str | None 
                     if not line.strip():
                         continue
                     data = json.loads(line)
-                    if data.get("decision_type") == "phase_complete" and data.get("phase"):
+                    if data.get("decision_type") == "phase_complete" and data.get(
+                        "phase"
+                    ):
                         phase_order.append(data["phase"])
                     # Legacy format fallback
                     elif data.get("type") == "PHASE_RESULT" and data.get("phase_name"):
-                        phase_outputs[data["phase_name"]] = data.get("metadata", {}).get("output", "")
+                        phase_outputs[data["phase_name"]] = data.get(
+                            "metadata", {}
+                        ).get("output", "")
 
         # Primary: read {phase-name}.md files written by kvr
         md_outputs: dict[str, str] = {}
@@ -829,7 +920,9 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
     completed_phases = 0
     total_phases = 0
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
     # Drain stderr in background to prevent deadlock when kvr emits >64KB
     stderr_output: list[str] = []
     stderr_thread = threading.Thread(
@@ -849,7 +942,7 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
                 continue
 
             try:
-                event = json.loads(line[len(_PHASE_STREAM_PREFIX):])
+                event = json.loads(line[len(_PHASE_STREAM_PREFIX) :])
             except json.JSONDecodeError:
                 logger.warning("Malformed phase-stream JSON: %s", line[:200])
                 continue
@@ -865,12 +958,19 @@ def _run_with_progress(cmd: list[str], progress_token: str) -> int:
             elif event_type == "phase_start":
                 total = metadata.get("total_phases", total_phases)
                 phase_label = phase.replace("-", " ").title()
-                _send_progress(progress_token, completed_phases, total, f"Running: {phase_label}")
+                _send_progress(
+                    progress_token, completed_phases, total, f"Running: {phase_label}"
+                )
 
             elif event_type == "phase_complete":
                 completed_phases += 1
                 phase_label = phase.replace("-", " ").title()
-                _send_progress(progress_token, completed_phases, total_phases, f"Completed: {phase_label}")
+                _send_progress(
+                    progress_token,
+                    completed_phases,
+                    total_phases,
+                    f"Completed: {phase_label}",
+                )
 
     finally:
         proc.wait()
@@ -931,8 +1031,12 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
                     # Parallelize eligibility and Medicaid lookup
                     elig = None
                     medicaid = None
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                        elig_future = executor.submit(estimate_eligibility, income, people, state, fips, zip_code)
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=2
+                    ) as executor:
+                        elig_future = executor.submit(
+                            estimate_eligibility, income, people, state, fips, zip_code
+                        )
                         medicaid_future = executor.submit(get_state_medicaid, state)
                         try:
                             elig = elig_future.result()
@@ -941,18 +1045,26 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
                         try:
                             medicaid = medicaid_future.result()
                         except Exception:
-                            logger.debug("Medicaid enrichment failed for state %s", state, exc_info=True)
+                            logger.debug(
+                                "Medicaid enrichment failed for state %s",
+                                state,
+                                exc_info=True,
+                            )
 
                     estimates = (elig or {}).get("estimates", [{}])
                     if estimates:
                         est = estimates[0]
                         lines = ["## CMS Marketplace Data (Live)\n"]
-                        lines.append(f"- **APTC (tax credit):** ${est.get('aptc', 0):.2f}/month")
+                        lines.append(
+                            f"- **APTC (tax credit):** ${est.get('aptc', 0):.2f}/month"
+                        )
                         csr = est.get("csr", "none")
                         if csr and csr != "none":
                             lines.append(f"- **Cost-sharing reduction:** {csr}")
                         if est.get("is_medicaid_chip"):
-                            lines.append("- **Medicaid/CHIP:** Household likely qualifies")
+                            lines.append(
+                                "- **Medicaid/CHIP:** Household likely qualifies"
+                            )
                         fpl_pct = est.get("fpl", 0)
                         if fpl_pct:
                             lines.append(f"- **Federal Poverty Level:** {fpl_pct:.1f}%")
@@ -982,7 +1094,10 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             f"Use the benefits-navigator context for FPL tables and program reference."
         )
         task_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
+            mode="w",
+            suffix=".txt",
+            prefix="kvr-task-",
+            delete=False,
         )
         task_file.write(task)
         task_file.close()
@@ -992,7 +1107,11 @@ def _run_eligibility_check(args: dict[str, Any]) -> str:
             text=True,
             timeout=KVR_TIMEOUT,
         )
-        assist_output = result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
+        assist_output = (
+            result.stdout.strip()
+            or result.stderr.strip()
+            or f"Exit code: {result.returncode}"
+        )
         return enrichment + assist_output
     except Exception as e:
         logger.exception("eligibility check failed")
@@ -1012,7 +1131,9 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
         return "ZIP code is required for insurance plan comparison."
 
     if not re.fullmatch(r"\d{5}", zip_code):
-        return f"Invalid ZIP code format: {zip_code!r} (expected 5 digits, e.g. '77001')."
+        return (
+            f"Invalid ZIP code format: {zip_code!r} (expected 5 digits, e.g. '77001')."
+        )
 
     # If no API key, fall back to kvr assist
     if not os.environ.get("CMS_API_KEY"):
@@ -1043,13 +1164,20 @@ def _run_insurance_comparison(args: dict[str, Any]) -> str:
         # Step 3 & 4: Get eligibility and search plans in parallel
         eligibility = None
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            elig_future = executor.submit(estimate_eligibility, income, people, state, fips, zip_code)
-            plans_future = executor.submit(search_plans, income, people, fips, state, zip_code)
+            elig_future = executor.submit(
+                estimate_eligibility, income, people, state, fips, zip_code
+            )
+            plans_future = executor.submit(
+                search_plans, income, people, fips, state, zip_code
+            )
 
             try:
                 eligibility = elig_future.result()
             except Exception:
-                logger.warning("Eligibility estimate failed — continuing without APTC", exc_info=True)
+                logger.warning(
+                    "Eligibility estimate failed — continuing without APTC",
+                    exc_info=True,
+                )
 
             result = plans_future.result()
 
@@ -1078,7 +1206,10 @@ def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
             f"Use the benefits-navigator context for insurance channel reference."
         )
         task_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", prefix="kvr-task-", delete=False,
+            mode="w",
+            suffix=".txt",
+            prefix="kvr-task-",
+            delete=False,
         )
         task_file.write(task)
         task_file.close()
@@ -1088,7 +1219,11 @@ def _run_insurance_comparison_fallback(args: dict[str, Any]) -> str:
             text=True,
             timeout=KVR_TIMEOUT,
         )
-        return result.stdout.strip() or result.stderr.strip() or f"Exit code: {result.returncode}"
+        return (
+            result.stdout.strip()
+            or result.stderr.strip()
+            or f"Exit code: {result.returncode}"
+        )
     except Exception as e:
         logger.exception("insurance comparison fallback failed")
         return f"Error comparing insurance plans: {e}"
@@ -1116,7 +1251,9 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
 
     # Determine child gender — if both genders mentioned, alternate; else use CMS default
     child_gender = "Female"  # CMS API default
-    if any(m in profile_lower for m in ["boy", "son "]) and not any(m in profile_lower for m in ["girl", "daughter"]):
+    if any(m in profile_lower for m in ["boy", "son "]) and not any(
+        m in profile_lower for m in ["girl", "daughter"]
+    ):
         child_gender = "Male"
 
     child_ages = []
@@ -1161,7 +1298,9 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
             target = len(people)
         target = min(target, MAX_HOUSEHOLD_SIZE)
         while len(people) < target:
-            people.append({"age": DEFAULT_ADULT_AGE, "gender": "Female", "uses_tobacco": False})
+            people.append(
+                {"age": DEFAULT_ADULT_AGE, "gender": "Female", "uses_tobacco": False}
+            )
 
     # If we only have 1 person but "kids" or "children" are mentioned, add defaults
     kid_match = _KID_COUNT_RE.search(profile)
@@ -1172,7 +1311,9 @@ def _parse_household_for_api(args: dict[str, Any]) -> list[dict[str, Any]]:
             n_kids = 0
         n_kids = min(n_kids, MAX_HOUSEHOLD_SIZE - len(people))
         for _ in range(n_kids):
-            people.append({"age": DEFAULT_CHILD_AGE, "gender": "Female", "uses_tobacco": False})
+            people.append(
+                {"age": DEFAULT_CHILD_AGE, "gender": "Female", "uses_tobacco": False}
+            )
 
     # Cap total household size
     people = people[:MAX_HOUSEHOLD_SIZE]
@@ -1216,7 +1357,10 @@ def _parse_income(args: dict[str, Any]) -> int:
                     income *= 1000
                 return income
 
-    logger.warning("No income found in profile, using default %d — results may be inaccurate", DEFAULT_INCOME)
+    logger.warning(
+        "No income found in profile, using default %d — results may be inaccurate",
+        DEFAULT_INCOME,
+    )
     return DEFAULT_INCOME
 
 
@@ -1260,12 +1404,16 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
                 url_entries[url] = source_type
 
     # Extract verification summary from evidence-verification phase
-    verify_text = phase_outputs.get("evidence-verify", phase_outputs.get("evidence-verification", ""))
+    verify_text = phase_outputs.get(
+        "evidence-verify", phase_outputs.get("evidence-verification", "")
+    )
     verify_summary = ""
     for line in verify_text.split("\n"):
         if "checks performed" in line.lower() or "total checks" in line.lower():
             verify_summary = re.sub(
-                r"^[#*\s]*(?:SUMMARY:\s*)?", "", line,
+                r"^[#*\s]*(?:SUMMARY:\s*)?",
+                "",
+                line,
             ).strip()
             break
 
@@ -1281,9 +1429,7 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
             "against official reference tables."
         )
     else:
-        parts.append(
-            "The following sources were cited in this analysis."
-        )
+        parts.append("The following sources were cited in this analysis.")
 
     if verify_summary:
         parts.append("")
@@ -1320,20 +1466,56 @@ def _build_sources_section(phase_outputs: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 
 _STATE_CODES: dict[str, str] = {
-    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
-    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
-    "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
-    "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
-    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
-    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN",
-    "mississippi": "MS", "missouri": "MO", "montana": "MT", "nebraska": "NE",
-    "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ",
-    "new mexico": "NM", "new york": "NY", "north carolina": "NC",
-    "north dakota": "ND", "ohio": "OH", "oklahoma": "OK", "oregon": "OR",
-    "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
-    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
-    "vermont": "VT", "virginia": "VA", "washington": "WA",
-    "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
+    "alabama": "AL",
+    "alaska": "AK",
+    "arizona": "AZ",
+    "arkansas": "AR",
+    "california": "CA",
+    "colorado": "CO",
+    "connecticut": "CT",
+    "delaware": "DE",
+    "florida": "FL",
+    "georgia": "GA",
+    "hawaii": "HI",
+    "idaho": "ID",
+    "illinois": "IL",
+    "indiana": "IN",
+    "iowa": "IA",
+    "kansas": "KS",
+    "kentucky": "KY",
+    "louisiana": "LA",
+    "maine": "ME",
+    "maryland": "MD",
+    "massachusetts": "MA",
+    "michigan": "MI",
+    "minnesota": "MN",
+    "mississippi": "MS",
+    "missouri": "MO",
+    "montana": "MT",
+    "nebraska": "NE",
+    "nevada": "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    "ohio": "OH",
+    "oklahoma": "OK",
+    "oregon": "OR",
+    "pennsylvania": "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    "tennessee": "TN",
+    "texas": "TX",
+    "utah": "UT",
+    "vermont": "VT",
+    "virginia": "VA",
+    "washington": "WA",
+    "west virginia": "WV",
+    "wisconsin": "WI",
+    "wyoming": "WY",
 }
 
 
@@ -1407,12 +1589,14 @@ def _run_generate_application_draft(args: dict[str, Any]) -> str:
 
 
 # Populate dispatch table now that handlers are defined
-_TOOL_DISPATCH.update({
-    "navigate_benefits": _handle_navigate_benefits,
-    "check_eligibility": _handle_check_eligibility,
-    "compare_insurance_plans": _handle_compare_insurance,
-    "generate_application_draft": _handle_generate_application_draft,
-})
+_TOOL_DISPATCH.update(
+    {
+        "navigate_benefits": _handle_navigate_benefits,
+        "check_eligibility": _handle_check_eligibility,
+        "compare_insurance_plans": _handle_compare_insurance,
+        "generate_application_draft": _handle_generate_application_draft,
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1430,6 +1614,15 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
     params = request.get("params", {})
 
     if method == "initialize":
+        client = params.get("clientInfo")
+        if not isinstance(client, dict):
+            client = {}
+        client_name = client.get("name") or "unknown"
+        client_version = client.get("version") or ""
+        _SESSION["actor"] = (
+            _sanitize_actor(f"{client_name} {client_version}") or "unknown"
+        )
+        _SESSION["session_id"] = _new_id()
         return _jsonrpc_result(
             req_id,
             {
@@ -1466,16 +1659,16 @@ def _handle_request(request: dict) -> dict | None:  # noqa: PLR0911
 
     # Unknown method — return error only if it has an id (not a notification).
     if req_id is not None:
-        return {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "error": {"code": -32601, "message": f"Unknown method: {method}"},
-        }
+        return _jsonrpc_error(req_id, -32601, f"Unknown method: {method}")
     return None
 
 
 def _jsonrpc_result(req_id: Any, result: Any) -> dict:
     return {"jsonrpc": "2.0", "id": req_id, "result": result}
+
+
+def _jsonrpc_error(req_id: Any, code: int, message: str) -> dict:
+    return {"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}
 
 
 # ---------------------------------------------------------------------------
@@ -1490,6 +1683,39 @@ def _handle_sigterm(signum: int, frame: Any) -> None:
     global _shutdown_requested
     _shutdown_requested = True
     logger.info("SIGTERM received, shutting down gracefully")
+
+
+def _serve() -> None:
+    """Dispatch newline-delimited JSON-RPC messages from stdin to stdout."""
+    for line in sys.stdin:
+        if _shutdown_requested:
+            break
+
+        line = line.strip()
+        if not line:
+            continue
+
+        try:
+            request = json.loads(line)
+        except json.JSONDecodeError:
+            logger.warning("Malformed JSON: %s", line[:100])
+            continue
+
+        try:
+            response = _handle_request(request)
+        except Exception:
+            logger.exception("Unhandled error handling request")
+            req_id = request.get("id") if isinstance(request, dict) else None
+            response = (
+                _jsonrpc_error(req_id, -32603, "Internal error")
+                if req_id is not None
+                else None
+            )
+        if response is not None:
+            sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+
+    logger.info("Benefit Navigator MCP server shutting down")
 
 
 def main() -> None:
@@ -1509,32 +1735,14 @@ def main() -> None:
 
     # Startup validation
     if not shutil.which("kvr"):
-        logger.warning("kvr not found on PATH — navigate_benefits and check_eligibility will fail")
+        logger.warning(
+            "kvr not found on PATH — navigate_benefits and check_eligibility will fail"
+        )
     if not os.environ.get("CMS_API_KEY"):
         logger.warning("CMS_API_KEY not set — marketplace API features unavailable")
 
     logger.info("Benefit Navigator MCP server starting (stdio transport)")
-
-    for line in sys.stdin:
-        if _shutdown_requested:
-            break
-
-        line = line.strip()
-        if not line:
-            continue
-
-        try:
-            request = json.loads(line)
-        except json.JSONDecodeError:
-            logger.warning("Malformed JSON: %s", line[:100])
-            continue
-
-        response = _handle_request(request)
-        if response is not None:
-            sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
-            sys.stdout.flush()
-
-    logger.info("Benefit Navigator MCP server shutting down")
+    _serve()
 
 
 if __name__ == "__main__":

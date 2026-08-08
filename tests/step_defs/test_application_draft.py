@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.mcp_server import _execute_tool
@@ -15,23 +17,43 @@ from benefits_navigator.pdf_generator import generate_application_pdf
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/application_draft.feature", "PDF is generated with correct structure")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/application_draft.feature", "PDF is generated with correct structure"
+)
 def test_pdf_structure():
     pass
 
 
-@scenario("../features/application_draft.feature", "PDF extracts eligible programs from workflow output")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/application_draft.feature",
+    "PDF extracts eligible programs from workflow output",
+)
 def test_pdf_programs():
     pass
 
 
-@scenario("../features/application_draft.feature", "Missing workflow output returns guidance")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/application_draft.feature", "Missing workflow output returns guidance"
+)
 def test_missing_output():
     pass
 
 
-@scenario("../features/application_draft.feature", "Household details are parsed into the PDF")
+@scenario(
+    "../features/application_draft.feature", "Household details are parsed into the PDF"
+)
 def test_household_details():
+    pass
+
+
+@scenario(
+    "../features/application_draft.feature",
+    "SSN field is left blank for the applicant to complete",
+)
+def test_ssn_blank_field():
     pass
 
 
@@ -105,6 +127,18 @@ def given_medicaid_output(ctx):
         "### Required Documents\n"
         "- Proof of income\n"
         "- Birth certificates\n"
+        "- Proof of residency\n"
+    )
+    ctx.args["workflow_output"] = ctx.workflow_output
+
+
+@given("generic workflow output")
+def given_generic_output(ctx):
+    ctx.workflow_output = (
+        "## Eligibility Results\n"
+        "- Program A: ELIGIBLE\n"
+        "### Required Documents\n"
+        "- Proof of income\n"
         "- Proof of residency\n"
     )
     ctx.args["workflow_output"] = ctx.workflow_output
@@ -192,6 +226,16 @@ def check_missing_output_message(ctx):
 
 @then(parsers.parse('the PDF text contains "{text}"'))
 def check_pdf_contains(ctx, text):
-    # PDF text content is in stream objects — search raw bytes
+    # Decoding as latin-1 and substring-searching the raw bytes works only because
+    # pdf_generator emits uncompressed content streams.  If FlateDecode (or any other
+    # stream filter) is ever added, this search will silently stop matching and the
+    # step must be rewritten to use a real PDF text extractor (e.g. pdfminer/pypdf).
     pdf_str = ctx.pdf_bytes.decode("latin-1", errors="replace")
     assert text in pdf_str, f"Expected '{text}' in PDF content"
+
+
+@then("the PDF text does not contain a filled SSN pattern")
+def check_no_filled_ssn(ctx):
+    pdf_str = ctx.pdf_bytes.decode("latin-1", errors="replace")
+    matches = re.findall(r"\b\d{3}-\d{2}-\d{4}\b", pdf_str)
+    assert not matches, f"Filled SSN-like pattern rendered in PDF: {matches}"

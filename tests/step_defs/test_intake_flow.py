@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
 from benefits_navigator.mcp_server import _check_intake_completeness, _execute_tool
@@ -13,7 +14,9 @@ from ..conftest import DEMO_PROFILE_FULL
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/intake_flow.feature", "Minimal request triggers tier-1 questions")
+@scenario(
+    "../features/intake_flow.feature", "Minimal request triggers tier-1 questions"
+)
 def test_minimal_request():
     pass
 
@@ -38,37 +41,53 @@ def test_income_keywords():
     pass
 
 
-@scenario("../features/intake_flow.feature", "Household composition detected via family keywords")
+@scenario(
+    "../features/intake_flow.feature",
+    "Household composition detected via family keywords",
+)
 def test_household_keywords():
     pass
 
 
-@scenario("../features/intake_flow.feature", "Tier-1 complete triggers tier-2 personalization questions")
+@scenario(
+    "../features/intake_flow.feature",
+    "Tier-1 complete triggers tier-2 personalization questions",
+)
 def test_tier2_questions():
     pass
 
 
-@scenario("../features/intake_flow.feature", "Coverage status detected in natural language")
+@scenario(
+    "../features/intake_flow.feature", "Coverage status detected in natural language"
+)
 def test_coverage_detected():
     pass
 
 
-@scenario("../features/intake_flow.feature", "Medications provided as explicit field skips that question")
+@scenario(
+    "../features/intake_flow.feature",
+    "Medications provided as explicit field skips that question",
+)
 def test_medications_explicit():
     pass
 
 
-@scenario("../features/intake_flow.feature", "Fully complete profile skips intake entirely")
+@scenario(
+    "../features/intake_flow.feature", "Fully complete profile skips intake entirely"
+)
 def test_full_profile():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario("../features/intake_flow.feature", "skip_intake bypasses all checks")
 def test_skip_intake():
     pass
 
 
-@scenario("../features/intake_flow.feature", "Provided data is summarized back to the user")
+@scenario(
+    "../features/intake_flow.feature", "Provided data is summarized back to the user"
+)
 def test_provided_summary():
     pass
 
@@ -114,7 +133,9 @@ def execute_tool(ctx, monkeypatch):
     # Mock _run_benefits_navigator to avoid actually calling kvr
     import benefits_navigator.mcp_server as mcp_mod
 
-    monkeypatch.setattr(mcp_mod, "_run_benefits_navigator", lambda args, **kw: "WORKFLOW_TRIGGERED")
+    monkeypatch.setattr(
+        mcp_mod, "_run_benefits_navigator", lambda args, **kw: "WORKFLOW_TRIGGERED"
+    )
     ctx.result = _execute_tool("navigate_benefits", ctx.args)
     ctx.tool_executed = True
 
@@ -126,14 +147,18 @@ def execute_tool(ctx, monkeypatch):
 
 @then(parsers.parse('the response stage is "{stage}"'))
 def check_stage(ctx, stage):
-    assert ctx.result is not None, "Expected intake response but got None (ready for analysis)"
+    assert ctx.result is not None, (
+        "Expected intake response but got None (ready for analysis)"
+    )
     assert f"Intake Status: {stage}" in ctx.result
 
 
 @then(parsers.parse('the response asks for "{field}"'))
 def check_asks_for(ctx, field):
     assert ctx.result is not None, "Expected intake response but got None"
-    assert field.lower() in ctx.result.lower(), f"Response should ask for '{field}' but doesn't:\n{ctx.result}"
+    assert field.lower() in ctx.result.lower(), (
+        f"Response should ask for '{field}' but doesn't:\n{ctx.result}"
+    )
 
 
 @then(parsers.parse('the response does not ask for "{field}"'))

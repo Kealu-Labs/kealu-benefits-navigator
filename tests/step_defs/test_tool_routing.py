@@ -2,48 +2,79 @@
 
 from __future__ import annotations
 
-import json
+import logging
+import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
-from benefits_navigator.mcp_server import _execute_tool
+import benefits_navigator.mcp_server as mcp_mod
+from benefits_navigator.mcp_server import _execute_tool, _handle_request
 
-from ..conftest import DEMO_PROFILE
+from ..conftest import DEMO_PROFILE, _parse_audit_records
 
 # ---------------------------------------------------------------------------
 # Scenarios
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/tool_routing.feature", "navigate_benefits invokes benefits-navigator workflow")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/tool_routing.feature",
+    "navigate_benefits invokes benefits-navigator workflow",
+)
 def test_invokes_workflow():
     pass
 
 
-@scenario("../features/tool_routing.feature", "Workflow variables are passed through to kvr")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/tool_routing.feature", "Workflow variables are passed through to kvr"
+)
 def test_vars_passed():
     pass
 
 
-@scenario("../features/tool_routing.feature", "Empty optional fields are not passed to kvr")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/tool_routing.feature", "Empty optional fields are not passed to kvr"
+)
 def test_empty_fields_omitted():
     pass
 
 
-@scenario("../features/tool_routing.feature", "check_eligibility invokes kvr assist with program name")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/tool_routing.feature",
+    "check_eligibility invokes kvr assist with program name",
+)
 def test_check_eligibility():
     pass
 
 
-@scenario("../features/tool_routing.feature", "compare_insurance_plans invokes kvr assist with zip code")
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
+@scenario(
+    "../features/tool_routing.feature",
+    "compare_insurance_plans invokes kvr assist with zip code",
+)
 def test_compare_plans():
     pass
 
 
+@pytest.mark.allow_log_output  # pre-init WARNING is an expected side effect: scenario exercises the tool without an initialize handshake
 @scenario("../features/tool_routing.feature", "Unknown tool returns error message")
 def test_unknown_tool():
+    pass
+
+
+@pytest.mark.allow_log_output  # audit INFO lines are intentional; asserted via caplog
+@scenario(
+    "../features/tool_routing.feature",
+    "Tool handler exception is audited without leaking the message",
+)
+def test_exception_audit_no_pii():
     pass
 
 
@@ -79,7 +110,10 @@ def add_profile_fields(ctx, datatable):
         ctx.args[row[0]] = row[1].strip()
 
 
-@given(parsers.parse('a check_eligibility call for program "{program}"'), target_fixture="ctx")
+@given(
+    parsers.parse('a check_eligibility call for program "{program}"'),
+    target_fixture="ctx",
+)
 def given_eligibility_call(program, datatable):
     ctx = RoutingContext()
     ctx.args = {row[0]: row[1].strip() for row in datatable}
@@ -138,7 +172,9 @@ def execute_with_assist_mock(ctx, monkeypatch):
 
     monkeypatch.setattr(sp, "run", mock_run)
 
-    tool_name = "check_eligibility" if "program" in ctx.args else "compare_insurance_plans"
+    tool_name = (
+        "check_eligibility" if "program" in ctx.args else "compare_insurance_plans"
+    )
     ctx.result = _execute_tool(tool_name, ctx.args)
     ctx.kvr_cmd = getattr(captured, "cmd", [])
     ctx.assist_task = getattr(captured, "task_content", getattr(captured, "task", ""))
@@ -175,7 +211,11 @@ def check_flag(ctx, flag, value):
 def check_var_arg(ctx, key, value):
     expected = f"{key}={value}"
     for i, arg in enumerate(ctx.kvr_cmd):
-        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1] == expected:
+        if (
+            arg == "--var"
+            and i + 1 < len(ctx.kvr_cmd)
+            and ctx.kvr_cmd[i + 1] == expected
+        ):
             return
     raise AssertionError(f"Expected '--var' '{expected}' in command: {ctx.kvr_cmd}")
 
@@ -183,14 +223,22 @@ def check_var_arg(ctx, key, value):
 @then(parsers.parse('the kvr command does not include var "{key}"'))
 def check_var_arg_absent(ctx, key):
     for i, arg in enumerate(ctx.kvr_cmd):
-        if arg == "--var" and i + 1 < len(ctx.kvr_cmd) and ctx.kvr_cmd[i + 1].startswith(f"{key}="):
-            raise AssertionError(f"Found unexpected '--var' '{ctx.kvr_cmd[i + 1]}' in command")
+        if (
+            arg == "--var"
+            and i + 1 < len(ctx.kvr_cmd)
+            and ctx.kvr_cmd[i + 1].startswith(f"{key}=")
+        ):
+            raise AssertionError(
+                f"Found unexpected '--var' '{ctx.kvr_cmd[i + 1]}' in command"
+            )
 
 
 @then("kvr assist was invoked")
 def check_assist_invoked(ctx):
     assert ctx.kvr_cmd, "kvr assist was not invoked"
-    assert any("assist" in arg for arg in ctx.kvr_cmd), f"Expected 'assist' in command: {ctx.kvr_cmd}"
+    assert any("assist" in arg for arg in ctx.kvr_cmd), (
+        f"Expected 'assist' in command: {ctx.kvr_cmd}"
+    )
 
 
 @then(parsers.parse('the task description includes "{text}"'))
@@ -201,3 +249,124 @@ def check_task_includes(ctx, text):
 @then(parsers.parse('the result contains "{text}"'))
 def check_result_contains(ctx, text):
     assert text in ctx.result, f"Expected '{text}' in result: {ctx.result}"
+
+
+# ---------------------------------------------------------------------------
+# Exception-audit scenario context and steps
+# ---------------------------------------------------------------------------
+
+
+class ExceptionAuditContext:
+    def __init__(self):
+        self.tool_name: str = "_test_pii_tool"
+        self.error_message: str = ""
+        self.raised: BaseException | None = None
+        self.audit_records: list = []
+        self.audit_text: str = ""
+
+
+@given(
+    parsers.parse('a registered tool whose handler raises "{error_message}"'),
+    target_fixture="exc_ctx",
+)
+def given_raising_handler(error_message, monkeypatch):
+    ctx = ExceptionAuditContext()
+    ctx.error_message = error_message
+
+    def _raising_handler(args, *, progress_token=None):
+        raise ValueError(error_message)
+
+    monkeypatch.setitem(mcp_mod._TOOL_DISPATCH, ctx.tool_name, _raising_handler)
+    return ctx
+
+
+@given(
+    parsers.parse('the session is initialized as client "{name}" version "{version}"'),
+)
+def given_session_initialized(name, version):
+    _handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"clientInfo": {"name": name, "version": version}},
+        }
+    )
+
+
+@when("the registered tool is executed and raises")
+def when_tool_raises(exc_ctx, caplog):
+    with caplog.at_level(logging.INFO, logger="benefits_navigator.mcp_server"):
+        with pytest.raises(ValueError) as exc_info:
+            _execute_tool(exc_ctx.tool_name, {})
+    exc_ctx.raised = exc_info.value
+    exc_ctx.audit_records = list(caplog.records)
+    exc_ctx.audit_text = caplog.text
+
+
+@then("the exception propagates")
+def then_exception_propagates(exc_ctx):
+    assert exc_ctx.raised is not None
+    assert isinstance(exc_ctx.raised, ValueError)
+    assert str(exc_ctx.raised) == exc_ctx.error_message, (
+        "audit path must re-raise the original exception unmodified"
+    )
+
+
+@then(parsers.parse('the audit log records error_type "{expected_error_type}"'))
+def then_audit_records_error_type(exc_ctx, expected_error_type):
+    events = _parse_audit_records(exc_ctx.audit_records)
+    matching = [
+        e
+        for e in events
+        if e.get("outcome") == "error"
+        and e.get("details", {}).get("error_type") == expected_error_type
+    ]
+    assert matching, (
+        f"No audit event with error_type={expected_error_type!r}; "
+        f"records: {exc_ctx.audit_text!r}"
+    )
+
+
+@then(parsers.parse('the audit log does not contain "{pii_substring}"'))
+def then_audit_no_pii(exc_ctx, pii_substring):
+    assert pii_substring not in exc_ctx.audit_text, (
+        f"PII substring {pii_substring!r} unexpectedly found in audit log"
+    )
+
+
+@then(
+    parsers.parse(
+        'every audit event carries actor "{expected_actor}" and a real session id'
+    )
+)
+def then_audit_events_carry_actor_and_session(exc_ctx, expected_actor):
+    events = _parse_audit_records(exc_ctx.audit_records)
+    tool_events = [e for e in events if e.get("action") == "tool_call"]
+    assert tool_events, (
+        f"No tool_call audit events found; records: {exc_ctx.audit_text!r}"
+    )
+    for event in tool_events:
+        assert "actor" in event, f"Audit event missing 'actor': {event}"
+        assert "session_id" in event, f"Audit event missing 'session_id': {event}"
+        assert event["actor"] == expected_actor, (
+            f"Expected actor={expected_actor!r}, got {event['actor']!r}"
+        )
+        assert event["session_id"] != "none", (
+            "Expected a real session_id, got 'none' — session was not initialized"
+        )
+        assert re.fullmatch(r"[0-9a-f]{12}", event["session_id"]), (
+            f"session_id {event['session_id']!r} does not match [0-9a-f]{{12}}"
+        )
+
+
+@then('kvr was invoked with a run-id matching "mcp-navigator-" plus 8 hex chars')
+def check_run_id_shape(ctx):
+    for i, arg in enumerate(ctx.kvr_cmd):
+        if arg == "--run-id" and i + 1 < len(ctx.kvr_cmd):
+            value = ctx.kvr_cmd[i + 1]
+            assert re.fullmatch(r"mcp-navigator-[0-9a-f]{8}", value), (
+                f"run-id {value!r} does not match mcp-navigator-[0-9a-f]{{8}}"
+            )
+            return
+    raise AssertionError(f"--run-id not found in kvr command: {ctx.kvr_cmd}")

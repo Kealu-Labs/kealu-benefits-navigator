@@ -18,27 +18,38 @@ from benefits_navigator.mcp_server import (
 # ---------------------------------------------------------------------------
 
 
-@scenario("../features/phase_streaming.feature", "Progress token enables phase streaming flag")
+@scenario(
+    "../features/phase_streaming.feature", "Progress token enables phase streaming flag"
+)
 def test_token_enables_flag():
     pass
 
 
-@scenario("../features/phase_streaming.feature", "No progress token omits phase streaming flag")
+@scenario(
+    "../features/phase_streaming.feature",
+    "No progress token omits phase streaming flag",
+)
 def test_no_token_no_flag():
     pass
 
 
-@scenario("../features/phase_streaming.feature", "workflow_start event sends initial progress")
+@scenario(
+    "../features/phase_streaming.feature", "workflow_start event sends initial progress"
+)
 def test_workflow_start():
     pass
 
 
-@scenario("../features/phase_streaming.feature", "phase_start event sends running progress")
+@scenario(
+    "../features/phase_streaming.feature", "phase_start event sends running progress"
+)
 def test_phase_start():
     pass
 
 
-@scenario("../features/phase_streaming.feature", "phase_complete event increments progress")
+@scenario(
+    "../features/phase_streaming.feature", "phase_complete event increments progress"
+)
 def test_phase_complete():
     pass
 
@@ -48,7 +59,9 @@ def test_all_phases():
     pass
 
 
-@scenario("../features/phase_streaming.feature", "Phase stream prefix is correctly parsed")
+@scenario(
+    "../features/phase_streaming.feature", "Phase stream prefix is correctly parsed"
+)
 def test_prefix_parsed():
     pass
 
@@ -80,7 +93,10 @@ class StreamContext:
 # ---------------------------------------------------------------------------
 
 
-@given(parsers.parse('a navigate_benefits call with progress token "{token}"'), target_fixture="ctx")
+@given(
+    parsers.parse('a navigate_benefits call with progress token "{token}"'),
+    target_fixture="ctx",
+)
 def given_with_token(token):
     ctx = StreamContext()
     ctx.progress_token = token
@@ -113,7 +129,9 @@ def given_completed_plural(ctx, n, total):
     ctx.total = total
 
 
-@given(parsers.parse('a phase stream line for phase "{phase}"'), target_fixture="line_ctx")
+@given(
+    parsers.parse('a phase stream line for phase "{phase}"'), target_fixture="line_ctx"
+)
 def given_stream_line(phase):
     ctx = StreamContext()
     event = json.dumps({"event_type": "phase_start", "phase": phase})
@@ -142,7 +160,16 @@ def build_command(ctx):
     kvr = shutil.which("kvr")
     if not kvr:
         pytest.skip("kvr not found on PATH")
-    cmd = [kvr, "run", "benefits-navigator", "--mode", "automated", "--no-progress", "--run-id", "test"]
+    cmd = [
+        kvr,
+        "run",
+        "benefits-navigator",
+        "--mode",
+        "automated",
+        "--no-progress",
+        "--run-id",
+        "test",
+    ]
     if ctx.progress_token:
         cmd.extend(["--phase-stream", "stdout"])
     ctx.cmd = cmd
@@ -162,7 +189,9 @@ def phase_start_event(ctx, phase):
     phase_label = phase.replace("-", " ").title()
     buf = StringIO()
     with patch("sys.stdout", buf):
-        _send_progress(ctx.progress_token, ctx.completed, ctx.total, f"Running: {phase_label}")
+        _send_progress(
+            ctx.progress_token, ctx.completed, ctx.total, f"Running: {phase_label}"
+        )
     ctx.notifications = _parse_notifications(buf.getvalue())
 
 
@@ -172,20 +201,30 @@ def phase_complete_event(ctx, phase):
     phase_label = phase.replace("-", " ").title()
     buf = StringIO()
     with patch("sys.stdout", buf):
-        _send_progress(ctx.progress_token, ctx.completed, ctx.total, f"Completed: {phase_label}")
+        _send_progress(
+            ctx.progress_token, ctx.completed, ctx.total, f"Completed: {phase_label}"
+        )
     ctx.notifications = _parse_notifications(buf.getvalue())
 
 
 @when(parsers.parse("phase_complete events arrive for all {n:d} phases"))
 def all_phases_complete(ctx, n):
     ctx.total = n
-    phases = ["benefits-research", "insurance-research", "evidence-verification", "eligibility-validation", "action-plan"]
+    phases = [
+        "benefits-research",
+        "insurance-research",
+        "evidence-verification",
+        "eligibility-validation",
+        "action-plan",
+    ]
     buf = StringIO()
     with patch("sys.stdout", buf):
         for phase in phases[:n]:
             ctx.completed += 1
             label = phase.replace("-", " ").title()
-            _send_progress(ctx.progress_token, ctx.completed, ctx.total, f"Completed: {label}")
+            _send_progress(
+                ctx.progress_token, ctx.completed, ctx.total, f"Completed: {label}"
+            )
     ctx.notifications = _parse_notifications(buf.getvalue())
 
 
@@ -207,7 +246,11 @@ def check_no_flag(ctx, flag):
     assert flag not in ctx.cmd, f"Found unexpected '{flag}' in command: {ctx.cmd}"
 
 
-@then(parsers.parse("an MCP progress notification is sent with progress {p:d} and total {t:d}"))
+@then(
+    parsers.parse(
+        "an MCP progress notification is sent with progress {p:d} and total {t:d}"
+    )
+)
 def check_progress(ctx, p, t):
     assert ctx.notifications, "No notifications sent"
     notif = ctx.notifications[-1]
@@ -216,7 +259,11 @@ def check_progress(ctx, p, t):
     assert params["total"] == t, f"Expected total {t}, got {params['total']}"
 
 
-@then(parsers.parse('an MCP progress notification is sent with message containing "{text}"'))
+@then(
+    parsers.parse(
+        'an MCP progress notification is sent with message containing "{text}"'
+    )
+)
 def check_message(ctx, text):
     assert ctx.notifications, "No notifications sent"
     msg = ctx.notifications[-1]["params"]["message"]
@@ -230,7 +277,9 @@ def check_message_contains(ctx, text):
     assert text in msg, f"Expected '{text}' in message: {msg}"
 
 
-@then(parsers.parse("the final progress notification has progress {p:d} and total {t:d}"))
+@then(
+    parsers.parse("the final progress notification has progress {p:d} and total {t:d}")
+)
 def check_final(ctx, p, t):
     assert ctx.notifications, "No notifications sent"
     last = ctx.notifications[-1]["params"]
@@ -240,19 +289,25 @@ def check_final(ctx, p, t):
 
 @then("it is recognized as a phase stream event")
 def check_is_event(line_ctx):
-    assert line_ctx.line.startswith(_PHASE_STREAM_PREFIX), f"Line not recognized as stream event: {line_ctx.line}"
+    assert line_ctx.line.startswith(_PHASE_STREAM_PREFIX), (
+        f"Line not recognized as stream event: {line_ctx.line}"
+    )
 
 
 @then(parsers.parse('the phase name is "{phase}"'))
 def check_phase_name(line_ctx, phase):
-    payload = line_ctx.line[len(_PHASE_STREAM_PREFIX):]
+    payload = line_ctx.line[len(_PHASE_STREAM_PREFIX) :]
     event = json.loads(payload)
-    assert event.get("phase") == phase, f"Expected phase '{phase}', got {event.get('phase')}"
+    assert event.get("phase") == phase, (
+        f"Expected phase '{phase}', got {event.get('phase')}"
+    )
 
 
 @then("it is not recognized as a phase stream event")
 def check_not_event(line_ctx):
-    assert not line_ctx.line.startswith(_PHASE_STREAM_PREFIX), f"Line incorrectly recognized: {line_ctx.line}"
+    assert not line_ctx.line.startswith(_PHASE_STREAM_PREFIX), (
+        f"Line incorrectly recognized: {line_ctx.line}"
+    )
 
 
 # ---------------------------------------------------------------------------
