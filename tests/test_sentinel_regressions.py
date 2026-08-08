@@ -41,6 +41,7 @@ def _dump_field_values(path) -> dict[str, str]:
     }
 
 
+@pytest.mark.allow_log_output  # pypdf warns "No fields to update" on field-less pages
 def test_official_form_never_contains_sentinels(tmp_path):
     path, form_type = generate_application(
         dict(SENTINEL_ARGS), WORKFLOW_OUTPUT, tmp_path
@@ -55,6 +56,7 @@ def test_official_form_never_contains_sentinels(tmp_path):
         )
 
 
+@pytest.mark.allow_log_output  # pypdf warns "No fields to update" on field-less pages
 def test_skipped_language_is_not_asserted_as_english(tmp_path):
     path, form_type = generate_application(
         dict(SENTINEL_ARGS), WORKFLOW_OUTPUT, tmp_path
@@ -72,6 +74,7 @@ def test_skipped_language_is_not_asserted_as_english(tmp_path):
     )
 
 
+@pytest.mark.allow_log_output  # pypdf warns "No fields to update" on field-less pages
 def test_signature_date_left_blank_on_official_form(tmp_path):
     path, form_type = generate_application(
         dict(SENTINEL_ARGS), WORKFLOW_OUTPUT, tmp_path
