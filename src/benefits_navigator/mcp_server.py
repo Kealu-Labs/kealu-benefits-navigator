@@ -312,6 +312,15 @@ _TOOLS = [
                         "and document requirements."
                     ),
                 },
+                "ca_review_confirmed": {
+                    "type": "boolean",
+                    "description": (
+                        "California only. Set to true after presenting the review "
+                        "screen to the user and receiving their confirmation. "
+                        "When false or absent, a review summary is shown instead "
+                        "of immediately generating the PDF."
+                    ),
+                },
             },
             "required": ["household_profile", "workflow_output"],
         },
@@ -1543,7 +1552,12 @@ def _normalize_state(args: dict[str, Any]) -> None:
 
 
 def _run_generate_application_draft(args: dict[str, Any]) -> str:
-    """Generate a pre-filled PDF application from workflow output."""
+    """Generate a pre-filled PDF application from workflow output.
+
+    For California (state == "CA"), guides the user through a structured
+    personal-detail intake before generating the official SAWS-1 form.
+    For all other states, falls back to the existing form-filler / worksheet flow.
+    """
     try:
         from benefits_navigator.form_filler import generate_application
 
@@ -1556,6 +1570,59 @@ def _run_generate_application_draft(args: dict[str, Any]) -> str:
 
         _normalize_state(args)
 
+        # ------------------------------------------------------------------ #
+        # California structured intake → SAWS-1 fill                          #
+        # ------------------------------------------------------------------ #
+        state = (args.get("state") or "").upper().strip()
+        if state == "CA":
+            from benefits_navigator.ca_application import (
+                CA_SUBMISSION_INSTRUCTIONS,
+                check_ca_readiness,
+                format_ca_application_field,
+                format_ca_review_summary,
+                get_next_ca_field,
+            )
+
+            # Step 1: Confirm we have the minimum required fields (ZIP + CA state).
+            blockers = check_ca_readiness(args)
+            if blockers:
+                lines = [
+                    "## California SAWS-1 Application",
+                    "",
+                    "Before generating your SAWS-1 form, I need a few required details:",
+                    "",
+                ]
+                for blocker in blockers:
+                    lines.append(f"- **{blocker['label']}:** {blocker['prompt']}")
+                return "\n".join(lines)
+
+            # Step 2: Collect personal details one field at a time.
+            next_field = get_next_ca_field(args)
+            if next_field is not None:
+                lines = [
+                    "## California SAWS-1 Application",
+                    "",
+                    format_ca_application_field(next_field),
+                ]
+                return "\n".join(lines)
+
+            # Step 3: All details collected — show review screen for confirmation.
+            # Only proceed to PDF if the user has explicitly confirmed the review.
+            if not args.get("ca_review_confirmed"):
+                return format_ca_review_summary(args)
+
+            # Step 4: User confirmed — fill the official SAWS-1 PDF.
+            path, _form_type = generate_application(args, workflow_output)
+            return (
+                f"Official California SAWS-1 form filled successfully.\n\n"
+                f"**Form:** Pre-filled SAWS-1 (CalFresh / Medi-Cal / CalWORKs)\n"
+                f"**File:** `{path}`\n\n"
+                + CA_SUBMISSION_INSTRUCTIONS
+            )
+
+        # ------------------------------------------------------------------ #
+        # All other states — existing form-filler / worksheet flow            #
+        # ------------------------------------------------------------------ #
         path, form_type = generate_application(args, workflow_output)
 
         if form_type == "official":

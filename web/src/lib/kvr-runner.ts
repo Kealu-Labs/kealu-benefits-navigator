@@ -195,14 +195,7 @@ export function startRun(
   // cwd = parent of web/ = repo root, so kvr writes .workforce/ to repo root
   const cwd = path.join(process.cwd(), '..');
 
-  console.log('========== KVR SPAWN ==========');
-console.log('cwd:', cwd);
-console.log('kvrPath:', kvrPath);
-console.log('args:', args);
-console.log('===============================');
   const proc = spawn(kvrPath, args, { cwd, shell: false });
-
-  console.log(`KVR spawned (pid=${proc.pid})`);
 
   const idleTimer = setInterval(() => {
     const run = activeRuns.get(runId);
@@ -230,10 +223,6 @@ console.log('===============================');
   // Stream stdout lines
   let buffer = '';
   proc.stdout?.on('data', (chunk: Buffer) => {
-    console.log('----- RAW STDOUT -----');
-    console.log(chunk.toString());
-    console.log('----------------------');
-
     buffer += chunk.toString();
 
     const lines = buffer.split('\n');
@@ -246,23 +235,17 @@ console.log('===============================');
 
   // Drain stderr in the background to prevent the OS pipe buffer from filling
   // and deadlocking stdout (Node.js pipes are bounded at ~64 KB).
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    console.error('========== KVR STDERR ==========');
-    console.error(chunk.toString());
-    console.error('================================');
-});
+  proc.stderr?.on('data', (_chunk: Buffer) => {
+    // Intentionally discarded — stderr is kvr's internal diagnostic output.
+    // Draining keeps the pipe from filling and deadlocking stdout.
+  });
 
-proc.on('close', (code, signal) => {
-  console.log('========== KVR CLOSED ==========');
-  console.log('exit code:', code);
-  console.log('signal:', signal);
-  console.log('================================');
-
-  setTimeout(() => terminateRun(runId), 2000);
-});
+  // Delay termination by 2 s to let in-flight stdout lines reach their readline
+  // handler before we remove the run from activeRuns and close controllers.
+  proc.on('close', (_code, _signal) => {
+    setTimeout(() => terminateRun(runId), 2000);
+  });
 }
-    // Delay termination by 2 s to let in-flight stdout lines reach their readline
-    // handler before we remove the run from activeRuns and close controllers.
 
 
 /**
