@@ -18,7 +18,10 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from pytest_bdd import given, parsers, scenario, then, when
+
+import benefits_navigator.mcp_server as mcp_mod
 
 from benefits_navigator.ca_application import (
     check_ca_readiness,
@@ -26,6 +29,17 @@ from benefits_navigator.ca_application import (
 )
 from benefits_navigator.form_filler import _extract_form_data
 from benefits_navigator.mcp_server import _execute_tool
+
+
+@pytest.fixture(autouse=True)
+def _initialized_session():
+    """Simulate a completed initialize handshake.
+
+    These scenarios exercise the adapter draft flow, not audit attribution;
+    without a session identity every direct _execute_tool call emits the
+    pre-initialize WARNING and trips the conftest log guard.
+    """
+    mcp_mod._SESSION.update({"actor": "pytest-adapter", "session_id": "cafe0123abcd"})
 
 # ---------------------------------------------------------------------------
 # Scenario bindings
@@ -72,6 +86,7 @@ def test_ca_draft_shows_review_screen():
     pass
 
 
+@pytest.mark.allow_log_output  # pypdf warns "No fields to update" on field-less template pages
 @scenario("../features/ca_application.feature", "CA draft generates SAWS-1 PDF after review is confirmed")
 def test_ca_draft_generates_pdf():
     pass
