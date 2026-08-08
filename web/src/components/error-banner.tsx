@@ -5,13 +5,18 @@
 
 'use client';
 
+import { useTranslation } from '@/hooks/use-translation';
+
 interface ErrorBannerProps {
   message: string;
   correlationId?: string;
   onRetry: () => void;
   /** Optional secondary action (e.g. "Edit my information"). */
   onSecondary?: () => void;
-  /** Label for the secondary action button. Defaults to "Edit my information". */
+  /**
+   * Label for the secondary action button.
+   * When omitted, falls back to the translated "Edit my information" string.
+   */
   secondaryLabel?: string;
 }
 
@@ -21,8 +26,11 @@ export default function ErrorBanner({
   correlationId,
   onRetry,
   onSecondary,
-  secondaryLabel = 'Edit my information',
+  secondaryLabel,
 }: ErrorBannerProps) {
+  const { t } = useTranslation();
+  const resolvedSecondaryLabel = secondaryLabel ?? t('error_edit_info');
+
   return (
     <div
       role="alert"
@@ -45,7 +53,7 @@ export default function ErrorBanner({
           onClick={onRetry}
           className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 transition-colors"
         >
-          Try Again
+          {t('error_try_again')}
         </button>
         {onSecondary && (
           <button
@@ -53,7 +61,7 @@ export default function ErrorBanner({
             onClick={onSecondary}
             className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 transition-colors"
           >
-            {secondaryLabel}
+            {resolvedSecondaryLabel}
           </button>
         )}
       </div>

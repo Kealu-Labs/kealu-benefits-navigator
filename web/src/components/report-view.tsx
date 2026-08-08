@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import ErrorBanner from './error-banner';
+import { useTranslation } from '@/hooks/use-translation';
 import type { ReportPayload } from '@/lib/report-assembler';
 
 /**
@@ -89,6 +90,7 @@ interface ReportViewProps {
  * - "Run Again" triggers a new workflow run without repeating intake.
  */
 export default function ReportView({ payload, runId, onRetry }: ReportViewProps) {
+  const { t } = useTranslation();
   const [retryError, setRetryError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -136,7 +138,7 @@ export default function ReportView({ payload, runId, onRetry }: ReportViewProps)
       {bottomLineHtml && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
           <p className="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-2">
-            Bottom Line
+            {t('report_bottom_line')}
           </p>
           <div
             className="markdown-content text-blue-900 text-sm"
@@ -154,8 +156,12 @@ export default function ReportView({ payload, runId, onRetry }: ReportViewProps)
         >
           <summary className="flex cursor-pointer select-none items-center justify-between px-5 py-4 font-medium text-slate-800 hover:bg-slate-50 rounded-xl list-none">
             <span>{section.displayName}</span>
-            <span className="text-xs text-slate-400 font-normal group-open:hidden">expand</span>
-            <span className="text-xs text-slate-400 font-normal hidden group-open:inline">collapse</span>
+            <span className="text-xs text-slate-400 font-normal group-open:hidden">
+              {t('report_expand')}
+            </span>
+            <span className="text-xs text-slate-400 font-normal hidden group-open:inline">
+              {t('report_collapse')}
+            </span>
           </summary>
           <div className="px-5 pb-5 pt-1 border-t border-slate-100">
             <div
@@ -177,7 +183,7 @@ export default function ReportView({ payload, runId, onRetry }: ReportViewProps)
           disabled={isRetrying}
           className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-slate-300 transition-colors"
         >
-          {isRetrying ? 'Starting…' : 'Run Again'}
+          {isRetrying ? t('report_starting') : t('report_run_again')}
         </button>
       </div>
 
