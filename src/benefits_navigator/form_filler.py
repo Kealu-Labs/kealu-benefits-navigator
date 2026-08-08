@@ -180,9 +180,16 @@ def _extract_form_data(args: dict[str, Any]) -> dict[str, str]:
     if email:
         data["email"] = str(email)
 
-    # Language — use provided value or default English
-    data["language_speak"] = args.get("language_speak") or "English"
-    data["language_read"] = args.get("language_read") or "English"
+    # Language — only what the applicant actually stated. Never default to
+    # "English": language determines the right to a free interpreter, and an
+    # asserted answer the applicant did not give is a misstatement on a
+    # signed government form.
+    language_speak = args.get("language_speak") or ""
+    if language_speak:
+        data["language_speak"] = str(language_speak)
+    language_read = args.get("language_read") or ""
+    if language_read:
+        data["language_read"] = str(language_read)
 
     return data
 
@@ -237,8 +244,7 @@ def fill_official_form(
         return None
 
     try:
-        from pypdf import PdfReader, PdfWriter
-        from pypdf.generic import NameObject
+        import pypdf  # noqa: F401
     except ImportError:
         logger.info("pypdf not installed — falling back to worksheet")
         return None
@@ -246,6 +252,29 @@ def fill_official_form(
     if output_dir is None:
         output_dir = Path.home() / "Documents" / "benefits-applications"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        return _fill_official_form_impl(
+            args, workflow_output, output_dir, info, template_path, state
+        )
+    except Exception:
+        # A corrupt or unexpectedly structured template must degrade to the
+        # worksheet fallback, not surface a generic tool error.
+        logger.exception("Official form fill failed — falling back to worksheet")
+        return None
+
+
+def _fill_official_form_impl(
+    args: dict[str, Any],
+    workflow_output: str,
+    output_dir: Path,
+    info: dict[str, Any],
+    template_path: Path,
+    state: str,
+) -> Path:
+    """Fill *template_path* and return the output path. May raise."""
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject
 
     reader = PdfReader(str(template_path))
     writer = PdfWriter()
@@ -310,6 +339,18 @@ def generate_application(
     -------
     (path, form_type) where form_type is ``"official"`` or ``"worksheet"``.
     """
+    # Blank skip sentinels ("skip", "none", ...) before any value can reach a
+    # generated document. The adapter path already blanks them in
+    # ApplicationProfile.to_args(), but callers may pass raw tool args
+    # (the MCP non-adapter path does), and the tool schema explicitly invites
+    # 'skip' answers for every state.
+    from benefits_navigator.applications.models import is_skip_sentinel
+
+    args = {
+        key: ("" if isinstance(value, str) and is_skip_sentinel(value) else value)
+        for key, value in args.items()
+    }
+
     # Try official form first
     path = fill_official_form(args, workflow_output, output_dir)
     if path is not None:

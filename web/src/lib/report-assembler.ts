@@ -45,6 +45,17 @@ export interface ReportPayload {
    * Empty string if the action-plan did not include a Bottom Line section.
    */
   bottomLine: string;
+  /**
+   * True when a pre-filled benefit application draft was successfully generated.
+   * The download URL is `/api/workflow/{runId}/draft` — runId is already known to the client.
+   * The absolute filesystem path is never sent to the client; it lives only in the Session.
+   */
+  draftAvailable: boolean;
+  /**
+   * "official" when an official state AcroForm PDF was filled; "worksheet" for the fallback
+   * worksheet PDF. null when draftAvailable is false.
+   */
+  draftFormType: 'official' | 'worksheet' | null;
 }
 
 /**
@@ -67,6 +78,15 @@ export interface AssembleError extends Error {
  */
 export function getWorkforceBase(): string {
   return path.join(process.cwd(), '..', '.workforce');
+}
+
+/**
+ * Resolve the .workforce-drafts base directory relative to the repo root.
+ * Draft PDFs are written here so they survive deleteRunDir() which only
+ * removes .workforce/{runId}/.
+ */
+export function getDraftsBase(): string {
+  return path.join(process.cwd(), '..', '.workforce-drafts');
 }
 
 /**
@@ -149,7 +169,7 @@ export async function assembleReport(
     throw error;
   }
 
-  return { sections, bottomLine };
+  return { sections, bottomLine, draftAvailable: false, draftFormType: null };
 }
 
 /**

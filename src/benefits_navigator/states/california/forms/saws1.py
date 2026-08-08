@@ -34,7 +34,9 @@ SAWS1_TEXT_FIELDS: dict[str, str] = {
     "phone_alternate": "applicant_phone_alternate",
     "email": "applicant_email",
     "ssn": "applicant_ssn",
-    "date": "applicant_date",
+    # "date" is deliberately NOT mapped: on the SAWS-1 template,
+    # ``applicant_date`` is the signature-date field. The applicant must date
+    # the form themselves when signing.
     "language_speak": "applicant_language_speak",
     "language_read": "applicant_language_read",
 }

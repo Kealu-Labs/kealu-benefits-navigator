@@ -90,6 +90,13 @@ export interface ChatMessage {
   content: string;
   /** Unix timestamp in milliseconds (Date.now()). */
   timestamp: number;
+  /**
+   * For user messages: the intake field key that was pending when this
+   * message was recorded (i.e. the question it answered). Used by duplicate
+   * detection so the same answer to two different questions is never treated
+   * as a resubmission. Absent on assistant messages and legacy sessions.
+   */
+  answeredField?: string;
 }
 
 /**
@@ -152,4 +159,14 @@ export interface Session {
    * used on subsequent requests after the run directory is deleted.
    */
   reportContent?: unknown;
+  /**
+   * Absolute filesystem path to the pre-filled benefit application draft PDF.
+   * Server-side only — never serialized to the client. null when no draft was generated.
+   */
+  draftPath?: string | null;
+  /**
+   * Form type of the draft PDF. "official" for a real state AcroForm,
+   * "worksheet" for the fallback worksheet PDF. null when no draft was generated.
+   */
+  draftFormType?: 'official' | 'worksheet' | null;
 }

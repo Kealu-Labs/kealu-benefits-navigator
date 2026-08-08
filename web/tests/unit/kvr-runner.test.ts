@@ -66,8 +66,8 @@ function makeMockProcess() {
 }
 
 describe('Constants', () => {
-  it('IDLE_TIMEOUT_MS is 600_000 (10 minutes)', () => {
-    expect(IDLE_TIMEOUT_MS).toBe(600_000);
+  it('IDLE_TIMEOUT_MS is 1_800_000 (30 minutes)', () => {
+    expect(IDLE_TIMEOUT_MS).toBe(1_800_000);
   });
 
   it('SIGTERM_DELAY_MS is 60_000 (60 seconds)', () => {
@@ -167,6 +167,22 @@ describe('__internal._checkIdle()', () => {
     vi.useRealTimers();
   });
 
+  it('does not terminate a run within the 30-minute idle window', () => {
+    const terminateSpy = vi.fn();
+    const broadcastSpy = vi.fn();
+    const now = Date.now();
+
+    __internal._checkIdle(
+      'run-1',
+      now - 1_799_999,
+      terminateSpy,
+      broadcastSpy,
+    );
+
+    expect(broadcastSpy).not.toHaveBeenCalled();
+    expect(terminateSpy).not.toHaveBeenCalled();
+  });
+
   it('broadcasts error event and calls terminate when idle > IDLE_TIMEOUT_MS', () => {
     vi.useFakeTimers();
     const terminateSpy = vi.fn();
@@ -174,9 +190,8 @@ describe('__internal._checkIdle()', () => {
     const now = Date.now();
     vi.setSystemTime(now);
 
-    // lastEventAt is 11 minutes ago — should trigger idle timeout
-    __internal._checkIdle('run-1', now - 660_000, terminateSpy, broadcastSpy);
-
+    // lastEventAt is 31 minutes ago — should trigger idle timeout
+    __internal._checkIdle('run-1', now - 1_860_000, terminateSpy, broadcastSpy);
     expect(broadcastSpy).toHaveBeenCalledOnce();
     const payload: string = broadcastSpy.mock.calls[0][0];
     expect(payload).toContain('error');
@@ -458,5 +473,154 @@ describe('getRunIdForSession()', () => {
     } as any);
 
     expect(getRunIdForSession('sess-with-run')).toBe('existing-run');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New tests: PYTHONUNBUFFERED env, workflow_start event, CRLF parsing,
+// addController history replay
+// ---------------------------------------------------------------------------
+
+describe('startRun() — PYTHONUNBUFFERED env', () => {
+  beforeEach(() => {
+    mockSpawn.mockReset();
+    mockResolveKvr.mockReturnValue('/usr/local/bin/kvr');
+    for (const [key] of activeRuns) activeRuns.delete(key);
+  });
+  afterEach(() => {
+    for (const [key] of activeRuns) activeRuns.delete(key);
+  });
+
+  it('spawn env includes PYTHONUNBUFFERED=1', () => {
+    const mockProc = makeMockProcess();
+    mockSpawn.mockReturnValue(mockProc);
+    mockProc.stdout.on.mockImplementation(() => {});
+    mockProc.stderr.on.mockImplementation(() => {});
+    mockProc.on.mockImplementation(() => {});
+
+    startRun('run-env-test', 'sess-env', { zip_code: '90210' } as any);
+
+    const [, , options] = mockSpawn.mock.calls[0];
+    expect((options as any)?.env?.PYTHONUNBUFFERED).toBe('1');
+  });
+});
+
+describe('startRun() — workflow_start history event', () => {
+  beforeEach(() => {
+    mockSpawn.mockReset();
+    mockResolveKvr.mockReturnValue('/usr/local/bin/kvr');
+    for (const [key] of activeRuns) activeRuns.delete(key);
+  });
+  afterEach(() => {
+    for (const [key] of activeRuns) activeRuns.delete(key);
+  });
+
+  it('workflow_start SSE event is in run.history immediately after startRun()', () => {
+    vi.useFakeTimers();
+    const mockProc = makeMockProcess();
+    mockSpawn.mockReturnValue(mockProc);
+    mockProc.stdout.on.mockImplementation(() => {});
+    mockProc.stderr.on.mockImplementation(() => {});
+    mockProc.on.mockImplementation(() => {});
+
+    startRun('run-wfstart', 'sess-wfstart', { zip_code: '77001' } as any);
+
+    const run = activeRuns.get('run-wfstart');
+    expect(run).toBeDefined();
+    expect(run!.history.length).toBeGreaterThan(0);
+    const startEvent = run!.history.find((h) => h.includes('workflow_start'));
+    expect(startEvent).toBeDefined();
+    vi.useRealTimers();
+  });
+});
+
+describe('__internal._processLine() — CRLF parsing', () => {
+  it('parses lines split by CRLF (\\r\\n) the same as LF (\\n)', () => {
+    // The stdout buffer splitter removes CRLF delimiters before _processLine runs.
+    const broadcastSpy = vi.fn();
+    const event: PhaseEvent = { event_type: 'phase_start', phase: 'benefits-research' };
+    const cleanLine = `[PHASE_STREAM] ${JSON.stringify(event)}`;
+    __internal._processLine('test-run-crlf', cleanLine, broadcastSpy);
+    expect(broadcastSpy).toHaveBeenCalledOnce();
+  });
+
+  it('startRun stdout data handler splits CRLF lines correctly (integration)', () => {
+    vi.useFakeTimers();
+    const mockProc = makeMockProcess();
+    mockSpawn.mockReset();
+    mockResolveKvr.mockReturnValue('/usr/local/bin/kvr');
+    mockSpawn.mockReturnValue(mockProc);
+
+    let capturedDataHandler: ((chunk: Buffer) => void) | undefined;
+    mockProc.stdout.on.mockImplementation((event: string, cb: (chunk: Buffer) => void) => {
+      if (event === 'data') capturedDataHandler = cb;
+    });
+    mockProc.stderr.on.mockImplementation(() => {});
+    mockProc.on.mockImplementation(() => {});
+
+    const runId = 'run-crlf-integration';
+    // Clear any previous runs
+    for (const [key] of activeRuns) activeRuns.delete(key);
+
+    startRun(runId, 'sess-crlf', { zip_code: '90001' } as any);
+
+    const run = activeRuns.get(runId);
+    expect(run).toBeDefined();
+    const initialHistoryLen = run!.history.length;
+
+    // Simulate KVR emitting CRLF-terminated output
+    if (capturedDataHandler) {
+      const event = { event_type: 'phase_start', phase: 'benefits-research' };
+      const crlfLine = `[PHASE_STREAM] ${JSON.stringify(event)}\r\n`;
+      capturedDataHandler(Buffer.from(crlfLine));
+    }
+
+    expect(run!.history.length).toBeGreaterThan(initialHistoryLen);
+    const phaseEvent = run!.history.find((h) => h.includes('phase_start'));
+    expect(phaseEvent).toBeDefined();
+
+    for (const [key] of activeRuns) activeRuns.delete(key);
+    vi.useRealTimers();
+  });
+});
+
+describe('addController() — history replay includes workflow_start', () => {
+  beforeEach(() => {
+    for (const [key] of activeRuns) activeRuns.delete(key);
+  });
+  afterEach(() => {
+    for (const [key] of activeRuns) activeRuns.delete(key);
+  });
+
+  it('replays workflow_start from history to a late-connecting controller', () => {
+    vi.useFakeTimers();
+    const mockProc = makeMockProcess();
+    const idleTimer = setInterval(() => {}, 30_000);
+    const startEvent = formatSseEvent({ event_type: 'workflow_start' }, 'run-replay-start');
+    const phaseEvent = formatSseEvent({ event_type: 'phase_start', phase: 'benefits-research' }, 'run-replay-phase');
+
+    activeRuns.set('run-replay', {
+      proc: mockProc,
+      runId: 'run-replay',
+      sessionId: 'sess-replay',
+      startedAt: Date.now(),
+      lastEventAt: Date.now(),
+      controllers: new Set(),
+      history: [startEvent, phaseEvent],
+      idleTimer,
+    } as any);
+
+    const mockCtrl = { enqueue: vi.fn(), close: vi.fn() } as any;
+    addController('run-replay', mockCtrl);
+
+    // Controller should have received both history events
+    expect(mockCtrl.enqueue).toHaveBeenCalledTimes(2);
+    const allArgs: string[] = mockCtrl.enqueue.mock.calls.map(
+      (call: [Uint8Array]) => new TextDecoder().decode(call[0]),
+    );
+    expect(allArgs.some((s) => s.includes('workflow_start'))).toBe(true);
+    expect(allArgs.some((s) => s.includes('phase_start'))).toBe(true);
+
+    vi.useRealTimers();
   });
 });

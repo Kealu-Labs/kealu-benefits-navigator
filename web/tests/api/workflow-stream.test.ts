@@ -35,7 +35,7 @@ vi.mock('@/lib/kvr-runner', () => ({
 
 // This import fails until web/src/app/api/workflow/[runId]/stream/route.ts is created.
 import { GET } from '@/app/api/workflow/[runId]/stream/route';
-import { addController, removeController } from '@/lib/kvr-runner';
+import { activeRuns, addController, removeController } from '@/lib/kvr-runner';
 
 const mockAddController = vi.mocked(addController);
 const mockRemoveController = vi.mocked(removeController);
@@ -64,26 +64,42 @@ describe('GET /api/workflow/[runId]/stream', () => {
     _sessionCookies = {};
     mockAddController.mockReset();
     mockRemoveController.mockReset();
+    // The route treats a runId absent from activeRuns as a stale run and
+    // closes the stream immediately; seed the registry so the default-case
+    // tests exercise the live-run path.
+    activeRuns.set(TEST_RUN_ID, {} as never);
     vi.useFakeTimers();
   });
 
   afterEach(() => {
+    activeRuns.clear();
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('closes immediately with a terminal error event for a stale (terminated) run', async () => {
+    activeRuns.clear();
+    const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
+
+    expect(res.status).toBe(200);
+    const text = await res.text(); // resolves only because the stream was closed
+    expect(text).toContain(': keepalive');
+    expect(mockAddController).not.toHaveBeenCalled();
   });
 
   // ── Authorization ──────────────────────────────────────────────────────────
 
   it('returns HTTP 403 when session cookie is absent', async () => {
     const req = makeStreamRequest(TEST_RUN_ID); // no session cookie
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(403);
   });
 
   it('returns HTTP 403 when session.runId does not match path runId', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest('different-run-id-9999', TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: 'different-run-id-9999' } });
+    const res = await GET(req, { params: Promise.resolve({ runId: 'different-run-id-9999' }) });
     expect(res.status).toBe(403);
   });
 
@@ -92,7 +108,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
   it('returns HTTP 200 with Content-Type: text/event-stream', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/text\/event-stream/);
@@ -101,7 +117,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
   it('Cache-Control header is no-cache, no-transform', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     const cacheControl = res.headers.get('cache-control') ?? '';
     expect(cacheControl).toMatch(/no-cache/i);
@@ -111,7 +127,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
   it('Connection header is keep-alive', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.headers.get('connection')).toMatch(/keep-alive/i);
   });
@@ -119,7 +135,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
   it('X-Correlation-Id header equals the runId', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.headers.get('x-correlation-id')).toBe(TEST_RUN_ID);
   });
@@ -129,7 +145,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
   it('first chunk sent contains keepalive comment (": keepalive")', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     if (res.body) {
       const reader = res.body.getReader();
@@ -147,7 +163,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
   it('calls addController(runId, controller) on stream open', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    await GET(req, { params: { runId: TEST_RUN_ID } });
+    await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(mockAddController).toHaveBeenCalledWith(
       TEST_RUN_ID,
@@ -161,7 +177,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     // Cancel the stream (simulates client disconnect)
     if (res.body) {
@@ -174,7 +190,7 @@ describe('GET /api/workflow/[runId]/stream', () => {
   it('calls removeController(runId, controller) when stream is cancelled', async () => {
     _sessionCookies['session'] = TEST_SESSION_ID;
     const req = makeStreamRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     if (res.body) {
       await res.body.cancel();

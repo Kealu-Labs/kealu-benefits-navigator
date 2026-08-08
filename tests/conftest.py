@@ -217,6 +217,18 @@ def _reset_mcp_session():
     mcp_mod._SESSION.update(mcp_mod._SESSION_DEFAULTS)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_home(monkeypatch, tmp_path):
+    """Point $HOME at a temp dir for every test.
+
+    The MCP tool path defaults its output directory to
+    ``Path.home()/Documents/benefits-applications``; without this fixture,
+    every test run deposits filled application PDFs (with fixture PII) into
+    the developer's real Documents folder.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+
 @pytest.fixture
 def demo_profile():
     """The demo household profile (tier-1 complete)."""

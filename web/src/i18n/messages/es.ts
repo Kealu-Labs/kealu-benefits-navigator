@@ -70,10 +70,16 @@ const es: Messages = {
   report_collapse: 'contraer',
   report_starting: 'Iniciando…',
   report_run_again: 'Ejecutar de nuevo',
+  report_download_official: 'Descargar solicitud SAWS-1 parcialmente pre-llenada',
+  report_download_worksheet: 'Descargar hoja de trabajo de preparación',
+  report_draft_disclaimer:
+    'El estado, código postal, condado y las casillas del programa están pre-llenados. Revise y complete toda la información personal (nombre, fecha de nacimiento, SSN, dirección) antes de enviar.',
 
   // ── error-banner.tsx ─────────────────────────────────────────────────────
   error_try_again: 'Intentar de nuevo',
   error_edit_info: 'Editar mi información',
+  error_stream_lost: 'Se perdió la conexión con el flujo de análisis. Por favor intente de nuevo.',
+  error_stream_connect_failed: 'No se pudo conectar al flujo de análisis. Por favor intente de nuevo.',
 
   // ── language-switcher.tsx ────────────────────────────────────────────────
   lang_select_aria: 'Seleccionar idioma',

@@ -67,10 +67,16 @@ const en = {
   report_collapse: 'collapse',
   report_starting: 'Starting…',
   report_run_again: 'Run Again',
+  report_download_official: 'Download partially pre-filled SAWS-1 application',
+  report_download_worksheet: 'Download preparation worksheet',
+  report_draft_disclaimer:
+    'State, ZIP, county, and program checkboxes are pre-filled. Review and complete all personal information (name, DOB, SSN, address) before submitting.',
 
   // ── error-banner.tsx ─────────────────────────────────────────────────────
   error_try_again: 'Try Again',
   error_edit_info: 'Edit my information',
+  error_stream_lost: 'Connection to the analysis stream was lost. Please try again.',
+  error_stream_connect_failed: 'Unable to connect to the analysis stream. Please try again.',
 
   // ── language-switcher.tsx ────────────────────────────────────────────────
   lang_select_aria: 'Select language',

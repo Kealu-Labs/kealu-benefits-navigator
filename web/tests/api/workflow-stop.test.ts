@@ -65,7 +65,7 @@ describe('POST /api/workflow/[runId]/stop', () => {
 
   it('returns HTTP 200 when runId belongs to the current session', async () => {
     const req = makeStopRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await POST(req, { params: { runId: TEST_RUN_ID } });
+    const res = await POST(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -74,7 +74,7 @@ describe('POST /api/workflow/[runId]/stop', () => {
 
   it('calls terminateRun(runId)', async () => {
     const req = makeStopRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    await POST(req, { params: { runId: TEST_RUN_ID } });
+    await POST(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(mockTerminateRun).toHaveBeenCalledOnce();
     expect(mockTerminateRun).toHaveBeenCalledWith(TEST_RUN_ID);
@@ -82,7 +82,7 @@ describe('POST /api/workflow/[runId]/stop', () => {
 
   it('clears session runId and runStatus after stopping', async () => {
     const req = makeStopRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    await POST(req, { params: { runId: TEST_RUN_ID } });
+    await POST(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     const session = sessionStore.get(TEST_SESSION_ID);
     expect(session?.runId).toBeUndefined();
@@ -95,7 +95,7 @@ describe('POST /api/workflow/[runId]/stop', () => {
     // terminateRun does nothing for an unknown/already-terminated run; the route
     // should still authorize on the session-owned runId and return success.
     const req = makeStopRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await POST(req, { params: { runId: TEST_RUN_ID } });
+    const res = await POST(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(200);
     expect(mockTerminateRun).toHaveBeenCalledWith(TEST_RUN_ID);
@@ -105,7 +105,7 @@ describe('POST /api/workflow/[runId]/stop', () => {
 
   it('returns HTTP 403 when path runId does not match session.runId', async () => {
     const req = makeStopRequest('different-run-id', TEST_SESSION_ID);
-    const res = await POST(req, { params: { runId: 'different-run-id' } });
+    const res = await POST(req, { params: Promise.resolve({ runId: 'different-run-id' }) });
 
     expect(res.status).toBe(403);
     expect(mockTerminateRun).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe('POST /api/workflow/[runId]/stop', () => {
 
   it('returns HTTP 403 when the session cookie is absent', async () => {
     const req = makeStopRequest(TEST_RUN_ID); // no cookie
-    const res = await POST(req, { params: { runId: TEST_RUN_ID } });
+    const res = await POST(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(403);
     expect(mockTerminateRun).not.toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('POST /api/workflow/[runId]/stop', () => {
 
   it('returns HTTP 403 for an unknown session cookie and does not mutate state', async () => {
     const req = makeStopRequest(TEST_RUN_ID, 'nonexistent-session');
-    const res = await POST(req, { params: { runId: TEST_RUN_ID } });
+    const res = await POST(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(403);
     expect(mockTerminateRun).not.toHaveBeenCalled();

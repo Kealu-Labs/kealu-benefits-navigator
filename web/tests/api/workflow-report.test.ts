@@ -31,6 +31,7 @@ vi.mock('@/lib/report-assembler', () => ({
   assembleReport: mockAssembleReport,
   deleteRunDir: mockDeleteRunDir,
   getWorkforceBase: mockGetWorkforceBase,
+  getDraftsBase: vi.fn().mockReturnValue('/tmp/.workforce-drafts'),
   PHASE_ORDER: ['benefits-research', 'insurance-research', 'evidence-verification', 'eligibility-validation', 'action-plan'],
   PHASE_DISPLAY_NAMES: {
     'benefits-research': 'Benefits Research',
@@ -39,6 +40,12 @@ vi.mock('@/lib/report-assembler', () => ({
     'eligibility-validation': 'Eligibility Validation',
     'action-plan': 'Action Plan',
   },
+}));
+
+// Mock draft-generator to avoid subprocess calls in report route tests
+vi.mock('@/lib/draft-generator', () => ({
+  generateDraft: vi.fn().mockResolvedValue(null),
+  resolvePythonExec: vi.fn().mockReturnValue(null),
 }));
 
 // Seed session store with a session that owns TEST_RUN_ID
@@ -66,6 +73,8 @@ const SAMPLE_REPORT = {
     { phaseName: 'action-plan', displayName: 'Action Plan', content: '## Action Plan\n1. Apply now', expanded: true },
   ],
   bottomLine: 'Your household qualifies for $18,000/year. Apply for CHIP this week.',
+  draftAvailable: false,
+  draftFormType: null,
 };
 
 function makeReportRequest(runId: string, sessionId?: string): Request {
@@ -93,13 +102,13 @@ describe('GET /api/workflow/[runId]/report', () => {
 
   it('returns HTTP 403 when session.runId does not match path runId', async () => {
     const req = makeReportRequest('different-run-id', TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: 'different-run-id' } });
+    const res = await GET(req, { params: Promise.resolve({ runId: 'different-run-id' }) });
     expect(res.status).toBe(403);
   });
 
   it('returns HTTP 403 when session cookie is absent', async () => {
     const req = makeReportRequest(TEST_RUN_ID); // no cookie
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res.status).toBe(403);
   });
 
@@ -109,7 +118,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockRejectedValue({ code: 'RUN_DIR_MISSING' });
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(422);
     const body = await res.json();
@@ -122,7 +131,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockRejectedValue({ code: 'INCOMPLETE', missingPhases });
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(422);
     const body = await res.json();
@@ -135,7 +144,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -147,7 +156,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res = await GET(req, { params: { runId: TEST_RUN_ID } });
+    const res = await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res.headers.get('x-correlation-id')).toBe(TEST_RUN_ID);
   });
@@ -156,7 +165,7 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    await GET(req, { params: { runId: TEST_RUN_ID } });
+    await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(mockDeleteRunDir).toHaveBeenCalledOnce();
   });
@@ -167,12 +176,12 @@ describe('GET /api/workflow/[runId]/report', () => {
     // First call assembles and caches
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
     const req1 = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res1 = await GET(req1, { params: { runId: TEST_RUN_ID } });
+    const res1 = await GET(req1, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res1.status).toBe(200);
 
     // Second call should use cache — assembleReport NOT called again
     const req2 = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res2 = await GET(req2, { params: { runId: TEST_RUN_ID } });
+    const res2 = await GET(req2, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     expect(res2.status).toBe(200);
     // deleteRunDir should only have been called once (first fetch)
@@ -185,12 +194,12 @@ describe('GET /api/workflow/[runId]/report', () => {
     mockAssembleReport.mockResolvedValue(SAMPLE_REPORT);
 
     const req = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    await GET(req, { params: { runId: TEST_RUN_ID } });
+    await GET(req, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
 
     // Verify session status is now 'complete' by making a second request
     // that uses the cache (which confirms session was updated)
     const req2 = makeReportRequest(TEST_RUN_ID, TEST_SESSION_ID);
-    const res2 = await GET(req2, { params: { runId: TEST_RUN_ID } });
+    const res2 = await GET(req2, { params: Promise.resolve({ runId: TEST_RUN_ID }) });
     expect(res2.status).toBe(200);
   });
 });

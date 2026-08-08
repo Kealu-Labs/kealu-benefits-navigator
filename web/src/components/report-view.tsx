@@ -172,6 +172,22 @@ export default function ReportView({ payload, runId, onRetry }: ReportViewProps)
         </details>
       ))}
 
+      {/* ── Draft application download ────────────────────────────────────── */}
+      {payload.draftAvailable && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-1.5">
+          <a
+            href={`/api/workflow/${runId}/draft`}
+            download
+            className="inline-flex items-center gap-2 text-sm font-medium text-green-800 underline underline-offset-2 hover:text-green-900"
+          >
+            {payload.draftFormType === 'official'
+              ? t('report_download_official')
+              : t('report_download_worksheet')}
+          </a>
+          <p className="text-xs text-green-700">{t('report_draft_disclaimer')}</p>
+        </div>
+      )}
+
       {/* ── Footer actions ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pt-2">
         <p className="text-xs text-slate-400 font-mono truncate max-w-[50%]">

@@ -47,13 +47,19 @@ class CaliforniaAdapter:
         profile: ApplicationProfile,
         workflow_output: str,
         output_dir: Path | None,
+        raw_args: dict | None = None,
     ) -> tuple[Path, str]:
         """Fill the SAWS-1 PDF via form_filler and return (path, form_type)."""
         # Lazy import avoids a circular dependency: form_filler imports saws1.py
         # for its constants at module load time; if adapter imported form_filler
         # at the top it would create a circular chain through states/__init__.py.
         from benefits_navigator import form_filler
-        return form_filler.generate_application(profile.to_args(), workflow_output, output_dir)
+
+        # Raw tool args first, profile values on top: the profile has no field
+        # for household_profile / income text, but the worksheet fallback needs
+        # them to render income and household members.
+        merged = {**(raw_args or {}), **profile.to_args()}
+        return form_filler.generate_application(merged, workflow_output, output_dir)
 
     def submission_instructions(self, profile: ApplicationProfile) -> str:
         return CA_SUBMISSION_INSTRUCTIONS

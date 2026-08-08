@@ -5,6 +5,7 @@ dist/
 build/
 .venv/
 .workforce/
+.workforce-drafts/
 *.egg
 .ruff_cache/
 *.swp
