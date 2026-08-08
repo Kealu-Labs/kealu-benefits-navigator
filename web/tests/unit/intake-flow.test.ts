@@ -246,22 +246,51 @@ describe('getNextQuestion()', () => {
 // ---------------------------------------------------------------------------
 
 describe('isIdempotentSubmission()', () => {
-  it('returns true when identical message content exists in history', () => {
+  it('returns true for an immediate resubmission of the latest user message', () => {
     const messages = [
-      { role: 'user' as const, content: 'My ZIP is 77001', timestamp: Date.now() - 5000 },
+      { role: 'user' as const, content: 'My ZIP is 77001', timestamp: Date.now() - 100 },
     ];
     expect(isIdempotentSubmission(messages, 'My ZIP is 77001')).toBe(true);
   });
 
+  it('returns false once the duplicate window has elapsed', () => {
+    const messages = [
+      { role: 'user' as const, content: 'My ZIP is 77001', timestamp: Date.now() - 60_000 },
+    ];
+    expect(isIdempotentSubmission(messages, 'My ZIP is 77001')).toBe(false);
+  });
+
   it('returns false for a novel message not in history', () => {
     const messages = [
-      { role: 'user' as const, content: 'My ZIP is 77001', timestamp: Date.now() - 5000 },
+      { role: 'user' as const, content: 'My ZIP is 77001', timestamp: Date.now() - 100 },
     ];
     expect(isIdempotentSubmission(messages, 'I make $42k a year')).toBe(false);
   });
 
   it('returns false for an empty message history', () => {
     expect(isIdempotentSubmission([], 'My ZIP is 77001')).toBe(false);
+  });
+
+  it('accepts the same answer to a later question (regression: "none" deadlock)', () => {
+    // "none" was answered to the medications question; the providers question
+    // also suggests "none". The second "none" must NOT be swallowed.
+    const messages = [
+      { role: 'user' as const, content: 'none', timestamp: Date.now() - 30_000 },
+      {
+        role: 'assistant' as const,
+        content: 'Any regular healthcare providers?',
+        timestamp: Date.now() - 29_000,
+      },
+    ];
+    expect(isIdempotentSubmission(messages, 'none')).toBe(false);
+  });
+
+  it('only matches the latest user message, not older history', () => {
+    const messages = [
+      { role: 'user' as const, content: 'none', timestamp: Date.now() - 100 },
+      { role: 'user' as const, content: 'jane@example.com', timestamp: Date.now() - 50 },
+    ];
+    expect(isIdempotentSubmission(messages, 'none')).toBe(false);
   });
 
   it('is case-sensitive (different case is NOT a duplicate)', () => {

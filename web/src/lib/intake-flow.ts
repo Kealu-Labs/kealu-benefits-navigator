@@ -266,11 +266,26 @@ export function getNextQuestion(
 }
 
 /**
- * Returns true if the exact same user message already exists in message history.
+ * Window within which an identical resubmission of the latest user message is
+ * treated as an accidental duplicate (double-click, double-fired fetch).
+ */
+export const DUPLICATE_SUBMISSION_WINDOW_MS = 5_000;
+
+/**
+ * Returns true when *content* is an accidental resubmission: it matches the
+ * most recent user message and arrived within DUPLICATE_SUBMISSION_WINDOW_MS
+ * of it.
+ *
+ * Only the latest user message is considered, and only briefly — several
+ * intake questions legitimately share the same answer (e.g. the suggested
+ * "none" for both medications and providers), so an older identical message
+ * must not swallow a new answer.
  */
 export function isIdempotentSubmission(messages: ChatMessage[], content: string): boolean {
   const normalized = content.trim();
-  return messages.some((m) => m.role === 'user' && m.content.trim() === normalized);
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  if (!lastUser || lastUser.content.trim() !== normalized) return false;
+  return Date.now() - lastUser.timestamp < DUPLICATE_SUBMISSION_WINDOW_MS;
 }
 
 /**

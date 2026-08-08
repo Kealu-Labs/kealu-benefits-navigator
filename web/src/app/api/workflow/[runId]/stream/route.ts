@@ -44,14 +44,6 @@ export async function GET(
   const cookieValue = sessionCookieMatch?.[1] ?? cookieStore.get(COOKIE_NAME)?.value;
   const session = cookieValue ? sessionStore.get(cookieValue) : null;
 
-  console.log({
-    rawCookie,
-    cookieValue,
-    hasSession: Boolean(session),
-    requestedRunId: runId,
-    sessionRunId: session?.runId,
-  });
-  
   if (!session || session.runId !== runId) {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
       status: 403,

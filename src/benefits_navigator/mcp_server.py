@@ -38,6 +38,13 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Register all state adapters. This import triggers states/__init__.py which
+# imports each state subpackage, calling registry.register() as a side effect.
+import benefits_navigator.states  # noqa: E402, F401
+from benefits_navigator.applications.models import ApplicationProfile  # noqa: E402
+from benefits_navigator.applications.readiness import format_intake_question  # noqa: E402
+from benefits_navigator.applications.registry import get as _get_adapter  # noqa: E402
+
 # Precompiled regex patterns
 _ZIP_RE = re.compile(r"\b\d{5}(?:-\d{4})?\b")
 _ZIP_EXACT_RE = re.compile(r"\b(\d{5})\b")
@@ -319,6 +326,48 @@ _TOOLS = [
                         "screen to the user and receiving their confirmation. "
                         "When false or absent, a review summary is shown instead "
                         "of immediately generating the PDF."
+                    ),
+                },
+                "applicant_name": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's full legal name, collected during the "
+                        "structured intake. Re-send every previously collected "
+                        "intake answer on each call."
+                    ),
+                },
+                "phone_home": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's phone number from intake. Pass 'skip' if "
+                        "the applicant declined to provide one."
+                    ),
+                },
+                "home_address": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's street address (no city/ZIP) from intake. "
+                        "Pass 'skip' if declined."
+                    ),
+                },
+                "home_city": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's city from intake. Pass 'skip' if declined."
+                    ),
+                },
+                "email": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's email address from intake. Pass 'skip' if "
+                        "declined."
+                    ),
+                },
+                "language_speak": {
+                    "type": "string",
+                    "description": (
+                        "Applicant's primary spoken language from intake. Pass "
+                        "'skip' if declined."
                     ),
                 },
             },
@@ -1554,13 +1603,11 @@ def _normalize_state(args: dict[str, Any]) -> None:
 def _run_generate_application_draft(args: dict[str, Any]) -> str:
     """Generate a pre-filled PDF application from workflow output.
 
-    For California (state == "CA"), guides the user through a structured
-    personal-detail intake before generating the official SAWS-1 form.
-    For all other states, falls back to the existing form-filler / worksheet flow.
+    Resolves a state adapter through the registry. If an adapter is registered
+    for the requested state it drives the full structured intake → review →
+    PDF flow. Unsupported states fall back to the form-filler / worksheet path.
     """
     try:
-        from benefits_navigator.form_filler import generate_application
-
         workflow_output = args.get("workflow_output", "")
         if not workflow_output:
             return (
@@ -1569,60 +1616,74 @@ def _run_generate_application_draft(args: dict[str, Any]) -> str:
             )
 
         _normalize_state(args)
-
-        # ------------------------------------------------------------------ #
-        # California structured intake → SAWS-1 fill                          #
-        # ------------------------------------------------------------------ #
         state = (args.get("state") or "").upper().strip()
-        if state == "CA":
-            from benefits_navigator.ca_application import (
-                CA_SUBMISSION_INSTRUCTIONS,
-                check_ca_readiness,
-                format_ca_application_field,
-                format_ca_review_summary,
-                get_next_ca_field,
-            )
+        profile = ApplicationProfile.from_args(args)
+        adapter = _get_adapter(state)
 
-            # Step 1: Confirm we have the minimum required fields (ZIP + CA state).
-            blockers = check_ca_readiness(args)
+        if adapter is not None:
+            # ---------------------------------------------------------------- #
+            # Adapter path — structured intake → review → document generation   #
+            # ---------------------------------------------------------------- #
+
+            # Step 1: Confirm minimum required fields (e.g. ZIP + state for CA).
+            blockers = adapter.readiness_blockers(profile)
             if blockers:
                 lines = [
-                    "## California SAWS-1 Application",
+                    f"## {adapter.display_name}",
                     "",
-                    "Before generating your SAWS-1 form, I need a few required details:",
+                    "Before generating your form, I need a few required details:",
                     "",
                 ]
                 for blocker in blockers:
                     lines.append(f"- **{blocker['label']}:** {blocker['prompt']}")
                 return "\n".join(lines)
 
-            # Step 2: Collect personal details one field at a time.
-            next_field = get_next_ca_field(args)
-            if next_field is not None:
-                lines = [
-                    "## California SAWS-1 Application",
+            # Step 2: Collect personal details one question at a time.
+            questions = adapter.missing_intake_questions(profile)
+            if questions:
+                return "\n".join([
+                    f"## {adapter.display_name}",
                     "",
-                    format_ca_application_field(next_field),
-                ]
-                return "\n".join(lines)
+                    format_intake_question(questions[0]),
+                ])
 
-            # Step 3: All details collected — show review screen for confirmation.
-            # Only proceed to PDF if the user has explicitly confirmed the review.
-            if not args.get("ca_review_confirmed"):
-                return format_ca_review_summary(args)
+            # Step 3: All details collected — require explicit confirmation.
+            if not profile.review_confirmed:
+                return adapter.review_summary(profile)
 
-            # Step 4: User confirmed — fill the official SAWS-1 PDF.
-            path, _form_type = generate_application(args, workflow_output)
+            # Step 4: User confirmed — generate application documents.
+            path, form_type = adapter.generate_documents(profile, workflow_output, None)
+            if form_type == "official":
+                return (
+                    f"Official {adapter.display_name} filled successfully.\n\n"
+                    f"**Form:** Pre-filled {adapter.display_name}\n"
+                    f"**File:** `{path}`\n\n"
+                    + adapter.submission_instructions(profile)
+                )
+            # The official template could not be filled (e.g. pypdf missing or
+            # template unreadable) and the generator fell back to a worksheet.
+            # Never present that fallback as the official form.
             return (
-                f"Official California SAWS-1 form filled successfully.\n\n"
-                f"**Form:** Pre-filled SAWS-1 (CalFresh / Medi-Cal / CalWORKs)\n"
+                f"Application Preparation Worksheet generated.\n\n"
                 f"**File:** `{path}`\n\n"
-                + CA_SUBMISSION_INSTRUCTIONS
+                f"The official {adapter.display_name} could not be filled on "
+                f"this system, so a preparation worksheet was generated "
+                f"instead. It is NOT the official form — use it as a "
+                f"reference when completing the official application.\n\n"
+                f"**Next steps for the applicant:**\n"
+                f"1. Open the PDF and review all pre-filled information\n"
+                f"2. Obtain the official form from your county office or "
+                f"state portal\n"
+                f"3. Use the worksheet to fill in the official application\n\n"
+                f"*This is a DRAFT — verify all information before "
+                f"submitting.*"
             )
 
-        # ------------------------------------------------------------------ #
-        # All other states — existing form-filler / worksheet flow            #
-        # ------------------------------------------------------------------ #
+        # -------------------------------------------------------------------- #
+        # Fallback — no adapter registered; use form-filler / worksheet path   #
+        # -------------------------------------------------------------------- #
+        from benefits_navigator.form_filler import generate_application
+
         path, form_type = generate_application(args, workflow_output)
 
         if form_type == "official":

@@ -29,8 +29,7 @@ describe('GET /api/health', () => {
     mockCheckKvrVersion.mockReturnValue({ ok: true, version: '0.225.0', path: '/usr/local/bin/kvr' });
     mockCheckCmsApiKey.mockReturnValue(true);
 
-    const req = new Request('http://localhost/api/health');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
   });
@@ -39,8 +38,7 @@ describe('GET /api/health', () => {
     mockCheckKvrVersion.mockReturnValue({ ok: true, version: '0.225.0', path: '/usr/local/bin/kvr' });
     mockCheckCmsApiKey.mockReturnValue(true);
 
-    const req = new Request('http://localhost/api/health');
-    const res = await GET(req);
+    const res = await GET();
     const body = await res.json();
 
     expect(body.kvr).toBe('ok');
@@ -52,8 +50,7 @@ describe('GET /api/health', () => {
     mockCheckKvrVersion.mockReturnValue({ ok: false, version: '', path: null, error: 'not found' });
     mockCheckCmsApiKey.mockReturnValue(false);
 
-    const req = new Request('http://localhost/api/health');
-    const res = await GET(req);
+    const res = await GET();
     const body = await res.json();
 
     expect(body.kvr).toBe('missing');
@@ -65,8 +62,7 @@ describe('GET /api/health', () => {
     mockCheckKvrVersion.mockReturnValue({ ok: true, version: '0.225.0', path: '/usr/local/bin/kvr' });
     mockCheckCmsApiKey.mockReturnValue(true);
 
-    const req = new Request('http://localhost/api/health');
-    const res = await GET(req);
+    const res = await GET();
     const body = await res.json();
     const bodyString = JSON.stringify(body);
 
@@ -80,8 +76,7 @@ describe('GET /api/health', () => {
     mockCheckKvrVersion.mockReturnValue({ ok: true, version: '0.225.0', path: '/usr/local/bin/kvr' });
     mockCheckCmsApiKey.mockReturnValue(true);
 
-    const req = new Request('http://localhost/api/health');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.headers.get('content-type')).toMatch(/application\/json/);
   });

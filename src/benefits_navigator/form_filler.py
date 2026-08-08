@@ -23,37 +23,12 @@ _FORMS_DIR = Path(__file__).parent / "forms"
 # Form registry — maps (state_code, program) to template + field mapping
 # ---------------------------------------------------------------------------
 
-# Field mapping: our canonical key → PDF AcroForm field name
-_CA_SAWS1_FIELDS: dict[str, str] = {
-    "name": "applicant_name",
-    "other_name": "applicant_name_other",
-    "home_address": "applicant_home_address",
-    "home_unit": "applicant_home_unit",
-    "home_city": "applicant_home_city",
-    "home_state": "applicant_home_state",
-    "home_zip": "applicant_home_zip",
-    "home_county": "applicant_home_county",
-    "mailing_address": "applicant_mailing_address",
-    "mailing_unit": "applicant_mailing_unit",
-    "mailing_city": "applicant_mailing_city",
-    "mailing_state": "applicant_mailing_state",
-    "mailing_zip": "applicant_mailing_zip",
-    "mailing_county": "applicant_mailing_county",
-    "phone_home": "applicant_phone_home",
-    "phone_alternate": "applicant_phone_alternate",
-    "email": "applicant_email",
-    "ssn": "applicant_ssn",
-    "date": "applicant_date",
-    "language_speak": "applicant_language_speak",
-    "language_read": "applicant_language_read",
-}
-
-# Checkbox fields: our key → PDF field name
-_CA_SAWS1_CHECKBOXES: dict[str, str] = {
-    "apply_calfresh": "applicant_programs_1",
-    "apply_medical": "applicant_programs_2",
-    "apply_calworks": "applicant_programs_3",
-}
+# CA field mappings are defined in states/california/forms/saws1.py and
+# imported here so the registry below has one authoritative source.
+from benefits_navigator.states.california.forms.saws1 import (  # noqa: E402
+    SAWS1_CHECKBOX_FIELDS as _CA_SAWS1_CHECKBOXES,
+    SAWS1_TEXT_FIELDS as _CA_SAWS1_FIELDS,
+)
 
 # Illinois IL444-2378B — combined Cash/Medical/SNAP application
 # XFA-style field names with Form[0].#subform[N] prefix
