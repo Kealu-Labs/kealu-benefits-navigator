@@ -30,30 +30,40 @@ _CA_MEDI_CAL_APPLICATION_URLS = (
 
 # Sensitive-field detection is token-based (word boundaries), not substring
 # based: "designed", "assign_to", or "salient" must NOT be flagged, while
-# "rep_sign", "date_signed", "ssn_1", or "alien_number" must be. Phrases cover
-# multi-word markers that survive tokenization boundaries.
+# "rep_sign", "date_signed", "ssn_1", "alien_number", "SpouseSSN", or
+# "ApplicantSignature" must be. camelCase and letter-digit boundaries are
+# split before tokenizing so concatenated PDF field names are covered; phrases
+# catch multi-word markers after separators are normalized to spaces.
 _SENSITIVE_FIELD_TOKENS = frozenset({
     "ssn",
+    "ss",
+    "ssnumber",
     "sign",
     "signed",
     "signature",
     "alien",
     "alein",
     "imdoc",
+    "imdocnumber",
 })
 
 _SENSITIVE_FIELD_PHRASES = (
     "social security",
     "document number",
-    "document_number",
 )
 
 
 def _contains_sensitive_marker(text: str) -> bool:
-    normalized = text.strip().lower()
+    # Split camelCase ("SpouseSSN" -> "Spouse SSN", "SSNumber" -> "S SNumber"
+    # is avoided by the acronym rule), then letter<->digit boundaries, then
+    # normalize every separator to a single space.
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text.strip())
+    spaced = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", spaced)
+    spaced = re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])", " ", spaced)
+    normalized = re.sub(r"[^a-z0-9]+", " ", spaced.lower()).strip()
     if any(phrase in normalized for phrase in _SENSITIVE_FIELD_PHRASES):
         return True
-    tokens = re.split(r"[^a-z0-9]+", normalized)
+    tokens = normalized.split()
     return any(token in _SENSITIVE_FIELD_TOKENS for token in tokens)
 
 
@@ -93,8 +103,10 @@ def _split_name(full_name: str) -> tuple[str, str, str]:
 
 
 def _none_to_blank(value: Any) -> str:
+    from benefits_navigator.applications.models import SKIP_SENTINELS
+
     text = str(value or "").strip()
-    return "" if text.lower() in {"none", "n/a", "not applicable"} else text
+    return "" if text.lower() in (SKIP_SENTINELS | {"not applicable"}) else text
 
 
 def _is_sensitive_pdf_field(field_name: str) -> bool:
@@ -842,6 +854,21 @@ def _parse_household_from_args(args: dict[str, Any]) -> dict[str, Any]:
         household["household_size"] = size_match.group(1) or size_match.group(2)
 
     household["income_type"] = args.get("income_type", "")
+
+    # Structured intake answers (collected by the state-adapter intake flow).
+    # The header page renders these keys directly; without this mapping a
+    # completed intake produced a worksheet with every personal field blank.
+    if args.get("applicant_name") or args.get("name"):
+        household["name"] = str(args.get("applicant_name") or args.get("name"))
+    if args.get("phone_home"):
+        household["phone"] = str(args["phone_home"])
+    if args.get("email"):
+        household["email"] = str(args["email"])
+    if args.get("home_city"):
+        household["city"] = str(args["home_city"])
+    if args.get("home_address"):
+        address = str(args["home_address"])
+        household["address"] = address
 
     return household
 

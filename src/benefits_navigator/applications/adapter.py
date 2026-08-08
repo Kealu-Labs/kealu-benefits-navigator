@@ -54,8 +54,14 @@ class StateApplicationAdapter(Protocol):
         profile: ApplicationProfile,
         workflow_output: str,
         output_dir: Path | None,
+        raw_args: dict | None = None,
     ) -> tuple[Path, str]:
         """Generate application documents.
+
+        ``raw_args`` carries original tool arguments that have no
+        ApplicationProfile field (e.g. ``household_profile``, income text) so
+        fallback documents can still render them; profile-derived values take
+        precedence over raw values.
 
         Returns ``(path, form_type)`` where ``form_type`` is ``"official"``
         for a filled government PDF or ``"worksheet"`` for the fallback.

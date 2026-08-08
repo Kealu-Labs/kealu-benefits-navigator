@@ -1652,7 +1652,9 @@ def _run_generate_application_draft(args: dict[str, Any]) -> str:
                 return adapter.review_summary(profile)
 
             # Step 4: User confirmed — generate application documents.
-            path, form_type = adapter.generate_documents(profile, workflow_output, None)
+            path, form_type = adapter.generate_documents(
+                profile, workflow_output, None, raw_args=args
+            )
             if form_type == "official":
                 return (
                     f"Official {adapter.display_name} filled successfully.\n\n"
