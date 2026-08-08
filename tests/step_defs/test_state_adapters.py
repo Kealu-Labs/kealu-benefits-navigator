@@ -27,6 +27,19 @@ from benefits_navigator.applications.registry import get as registry_get
 from benefits_navigator.applications.registry import register, unregister
 from benefits_navigator.mcp_server import _execute_tool
 
+import benefits_navigator.mcp_server as mcp_mod
+
+
+@pytest.fixture(autouse=True)
+def _initialized_session():
+    """Simulate a completed initialize handshake.
+
+    These scenarios exercise the adapter flow, not audit attribution; without
+    a session identity every direct _execute_tool call emits the
+    pre-initialize WARNING and trips the conftest log guard.
+    """
+    mcp_mod._SESSION.update({"actor": "pytest-adapter", "session_id": "cafe0123abcd"})
+
 # ---------------------------------------------------------------------------
 # Scenario bindings
 # ---------------------------------------------------------------------------
@@ -67,6 +80,7 @@ def test_mcp_review_gate():
     pass
 
 
+@pytest.mark.allow_log_output  # pypdf warns "No fields to update" on field-less template pages
 @scenario("../features/state_adapters.feature", "MCP generate_application_draft generates PDF after confirmation")
 def test_mcp_pdf_generation():
     pass
