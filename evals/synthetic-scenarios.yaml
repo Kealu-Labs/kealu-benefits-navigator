@@ -82,12 +82,12 @@ scenarios:
                                    # NEAR the threshold, not where the threshold is.
                                    # PENDING human sanity-check with the HHS sourcing.
     assertions:
-      - {id: no-marketplace, kind: must_not_include, field: outcome.programs, value: marketplace_subsidy}
+      - {id: no-marketplace, family: programs, kind: must_not_include, field: outcome.programs, value: marketplace_subsidy}
       - {id: names-the-gap, kind: must_mention_any, field: outcome.explanation,
          any_of: ["coverage gap", "has not expanded Medicaid"]}
-      - {id: fpl-dated, kind: conditional_presence,
+      - {id: fpl-dated, family: vintage, kind: conditional_presence,
          when_present: outcome.fpl_percentage, must_accompany: outcome.guideline_year}
-      - {id: exact-programs, kind: equals, field: outcome.programs,
+      - {id: exact-programs, family: programs, kind: equals, field: outcome.programs,
          expected: BLOCKED_PENDING_VERIFIED_TABLES}
 
   - id: austin-gap-split-household
@@ -106,11 +106,11 @@ scenarios:
       # Robust BECAUSE it is relational: children's thresholds sit far above any
       # adult pathway, so the outcomes differ on EITHER side of 100% FPL. Only the
       # adult's specific status turns on where the threshold falls.
-      - {id: split, kind: must_differ_within,
+      - {id: split, family: household-split, kind: must_differ_within,
          field_a: outcome.members.adult, field_b: outcome.members.children}
       - {id: names-the-gap, kind: must_mention_any, field: outcome.explanation,
          any_of: ["coverage gap", "has not expanded Medicaid"]}
-      - {id: adult-gap-status, kind: equals, field: outcome.members.adult,
+      - {id: adult-gap-status, family: household-split, kind: equals, field: outcome.members.adult,
          expected: BLOCKED_PENDING_VERIFIED_TABLES}
 
   - id: austin-boundary-just-over
@@ -135,14 +135,14 @@ scenarios:
       # alarm in early January (before HHS publishes) is deliberate: an
       # unnecessary notice costs a sentence, a missing one costs someone their
       # benefits. Do not loosen this.
-      - {id: fpl-vintage-current, kind: equals, field: outcome.guideline_year,
+      - {id: fpl-vintage-current, family: vintage, kind: equals, field: outcome.guideline_year,
          expected_from: run_year}
-      - {id: fpl-dated, kind: conditional_presence,
+      - {id: fpl-dated, family: vintage, kind: conditional_presence,
          when_present: outcome.fpl_percentage, must_accompany: outcome.guideline_year}
       # NOT COVERED by the two above, and it is the worse failure: whether the
       # FIGURES used match the vintage claimed. A hallucinated vintage is worse
       # than an undated one -- confidently wrong, honest signal overwritten.
-      - {id: figures-match-vintage, kind: equals, field: outcome.fpl_percentage,
+      - {id: figures-match-vintage, family: vintage, kind: equals, field: outcome.fpl_percentage,
          expected: BLOCKED_PENDING_VERIFIED_TABLES}
       - {id: boundary-outcome, kind: equals, field: outcome.programs,
          expected: BLOCKED_PENDING_VERIFIED_TABLES}
@@ -178,7 +178,7 @@ scenarios:
       # nothing today and keeps the assertion queued rather than forgotten.
       - {id: has-medicaid, kind: must_include, field: outcome.programs, value: medicaid,
          expected: BLOCKED_PENDING_VERIFIED_TABLES}
-      - {id: exact-programs, kind: equals, field: outcome.programs,
+      - {id: exact-programs, family: programs, kind: equals, field: outcome.programs,
          expected: BLOCKED_PENDING_VERIFIED_TABLES}
 
   - id: older-couple-chronic-condition
