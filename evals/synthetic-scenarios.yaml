@@ -142,6 +142,17 @@ scenarios:
       # NOT COVERED by the two above, and it is the worse failure: whether the
       # FIGURES used match the vintage claimed. A hallucinated vintage is worse
       # than an undated one -- confidently wrong, honest signal overwritten.
+      #
+      # WHEN GROUNDING THIS, READ FIRST: `field` below points at the SAME field
+      # fpl-dated uses as its trigger. That is harmless while blocked, but this
+      # assertion does not want to re-read what BN said -- it wants to compare
+      # BN's stated percentage against one RECOMPUTED from the verified tables.
+      # So it will likely need a different field (outcome.fpl_percentage_recomputed
+      # or similar) and possibly a comparison kind the harness does not have yet.
+      # Grounding it by simply filling in `expected` would compare BN's answer to
+      # itself and pass trivially -- which is the self-consistency trap that the
+      # synthetic-over-real-runs decision was made to avoid, reintroduced at the
+      # assertion level. (Flagged by eval, 2026-08-26.)
       - {id: figures-match-vintage, family: vintage, kind: equals, field: outcome.fpl_percentage,
          expected: BLOCKED_PENDING_VERIFIED_TABLES}
       - {id: boundary-outcome, kind: equals, field: outcome.programs,
