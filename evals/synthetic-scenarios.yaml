@@ -1,0 +1,138 @@
+#
+# Copyright 2026 Kealu Inc. All rights reserved.
+#
+# Five synthetic eligibility scenarios for the Benefits Navigator eval harness.
+# Commissioned by Stefan 2026-08-26: "5 synthetic scenarios including 3 focusing
+# on Austin."
+#
+# SYNTHETIC BY RULING. No real applicant data, ever. The corpus decision went
+# this way partly because scoring against stored real runs points BACKWARDS:
+# where BN is currently wrong, the stored run makes the wrong answer golden and
+# a better model scores as a regression.
+#
+# ============================ READ THIS FIRST ============================
+# EVERY `expected` BLOCK IS DELIBERATELY UNPOPULATED.
+#
+# A synthetic scenario's entire value is a known-correct outcome. Correct
+# outcomes cannot be derived from the tables this repo currently ships:
+#
+#   - contexts/community/benefits-navigator.md carries the "2025 HHS Poverty
+#     Guidelines". It is 2026. Thresholds rise annually, so the shipped tables
+#     understate eligibility.
+#   - The same file's "Medicaid Expansion Status (as of 2025)" list is likewise
+#     unverified against today, and by that document's own account expansion
+#     status is "the single largest state-by-state eligibility variable".
+#
+# Populating expectations from those tables would write wrong answers, label
+# them golden, and MANUFACTURE the enshrined-wrong-answer problem that choosing
+# synthetic was meant to avoid -- deliberately, and with our signature on it.
+#
+# Structure and ground truth are separable. Only ground truth is blocked.
+# Expected values are unblocked by ONE thing: current HHS poverty guidelines and
+# current expansion status, sourced from the published federal tables and
+# checked by a person. Do not infer them, and do not let a harness treat an
+# unpopulated or stale `expected` block as ground truth -- it must fail or skip
+# loudly, never silently pass.
+# =========================================================================
+
+meta:
+  status: structure_only
+  expected_values_blocked_on: >-
+    Human-verified current HHS poverty guidelines and current Medicaid
+    expansion status. See EMBEDDED_FPL_GUIDELINE_YEAR in web/src/lib/fpl-vintage.ts.
+  measures: eligibility_determination_correctness
+
+# ---------------------------------------------------------------------------
+# AUSTIN, TEXAS (3 of 5, per the ruling).
+#
+# Texas has NOT expanded Medicaid. That is not a different ZIP against the same
+# logic -- it is a different eligibility PATH. In non-expansion states adults
+# below 100% FPL fall into the "coverage gap": too much income for traditional
+# Medicaid, too little for ACA subsidies, which begin AT 100% FPL. They qualify
+# for nothing through either route.
+#
+# All three cluster around the 100% FPL boundary on purpose. That boundary is
+# both the highest-stakes decision the product makes and the exact number the
+# stale tables get wrong -- stale lower thresholds make income read as a HIGHER
+# percentage of FPL, so a person genuinely inside the gap can read as just over
+# it and be told they qualify for subsidies they cannot actually get.
+# ---------------------------------------------------------------------------
+
+scenarios:
+  - id: austin-gap-childless-adult
+    location: {city: Austin, state: TX, zip: "78702"}
+    household: {size: 1, composition: "single adult, no children, no disability"}
+    income_position: "well below 100% FPL"
+    exercises:
+      - Coverage gap detection in a non-expansion state
+      - Childless adult with no categorical pathway -- the harshest real outcome
+      - Whether BN states plainly that nothing is available rather than implying hope
+    why_this_case: >-
+      The case the product is most likely to get wrong in the most damaging
+      direction. If BN suggests marketplace subsidies here, it sends someone
+      with no options to an application that will be denied.
+    expected: BLOCKED_PENDING_VERIFIED_TABLES
+
+  - id: austin-gap-split-household
+    location: {city: Austin, state: TX, zip: "78744"}
+    household: {size: 3, composition: "one adult, two children aged 6 and 9"}
+    income_position: "just below 100% FPL"
+    exercises:
+      - Split outcome within one household -- children eligible, adult in the gap
+      - CHIP / children's Medicaid thresholds, which sit far above adult ones
+      - Whether BN reports a partial result clearly instead of one verdict
+    why_this_case: >-
+      A very common real pattern and easy to get wrong in either direction:
+      declaring the whole household ineligible, or implying the adult is
+      covered because the children are.
+    expected: BLOCKED_PENDING_VERIFIED_TABLES
+
+  - id: austin-boundary-just-over
+    location: {city: Austin, state: TX, zip: "78741"}
+    household: {size: 3, composition: "two adults, one child"}
+    income_position: "just above 100% FPL"
+    exercises:
+      - The subsidy-eligibility boundary at exactly 100% FPL
+      - Cost-sharing reductions in the band above it
+      - Sensitivity to FPL table vintage -- this case FLIPS on a stale table
+    why_this_case: >-
+      Deliberately placed on the margin the stale tables move. Under the 2025
+      tables this household reads differently than under current ones, which
+      makes it the canary for guideline staleness as well as an eligibility test.
+    expected: BLOCKED_PENDING_VERIFIED_TABLES
+
+  # -------------------------------------------------------------------------
+  # NON-AUSTIN (2 of 5). These are the only non-Texas coverage in the set, so
+  # they are chosen for CONTRAST rather than convenience: one exercises the
+  # opposite side of the expansion branch, the other a household shape and
+  # income band the Austin three do not reach.
+  # -------------------------------------------------------------------------
+
+  - id: expansion-state-mirror
+    location: {city: Fresno, state: CA, zip: "93706"}
+    household: {size: 1, composition: "single adult, no children, no disability"}
+    income_position: "same FPL position as austin-gap-childless-adult"
+    exercises:
+      - The expansion side of the largest branch in the system
+      - That an identical household gets an OPPOSITE answer purely on state
+      - The California state adapter (SAWS), which is the only one implemented
+    why_this_case: >-
+      A deliberate mirror of the first Austin case. Same household, same income
+      position, different state. If BN returns the same answer for both, it has
+      not applied expansion status at all -- which no aggregate score would
+      reveal, but this pair makes unmissable.
+    expected: BLOCKED_PENDING_VERIFIED_TABLES
+
+  - id: older-couple-chronic-condition
+    location: {city: Fresno, state: CA, zip: "93720"}
+    household: {size: 2, composition: "couple aged 58 and 61, one with a chronic condition"}
+    income_position: "around 250% FPL"
+    exercises:
+      - The CSR boundary at 250% FPL, a different threshold from the others
+      - The medications and providers inputs, which no other scenario populates
+      - Pre-Medicare older adults, a household shape absent from the Austin three
+    why_this_case: >-
+      Covers input fields and an income band the rest of the set never touches.
+      Also the only case where provider-network and prescription matching
+      matter, which is a large part of what the product actually outputs.
+    expected: BLOCKED_PENDING_VERIFIED_TABLES
