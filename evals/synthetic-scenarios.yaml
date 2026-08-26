@@ -36,7 +36,13 @@
 # =========================================================================
 
 meta:
-  status: structure_only
+  status: assertions_encoded_inputs_pending_sanity_check
+  # Blocking is PER-ASSERTION, not per-scenario. A case may sit on a boundary and
+  # block only the assertions that turn on it, keeping the rest live -- so the
+  # corpus never has to be distorted to fit what we can currently verify.
+  # Blocked is a QUEUE, not a bin: an assertion we want but cannot yet ground is
+  # blocked (visible, attached to its unblocking condition, excluded from the
+  # denominator), never deleted.
   expected_values_blocked_on: >-
     Human-verified current HHS poverty guidelines and current Medicaid
     expansion status. See EMBEDDED_FPL_GUIDELINE_YEAR in web/src/lib/fpl-vintage.ts.
@@ -71,7 +77,18 @@ scenarios:
       The case the product is most likely to get wrong in the most damaging
       direction. If BN suggests marketplace subsidies here, it sends someone
       with no options to an application that will be denied.
-    expected: BLOCKED_PENDING_VERIFIED_TABLES
+    input: {annual_income: 8000}   # ~51% of the 2025 HH-1 figure ($15,650); ~43% even under
+                                   # an implausible 20% rise. Asserting the value is nowhere
+                                   # NEAR the threshold, not where the threshold is.
+                                   # PENDING human sanity-check with the HHS sourcing.
+    assertions:
+      - {id: no-marketplace, kind: must_not_include, field: outcome.programs, value: marketplace_subsidy}
+      - {id: names-the-gap, kind: must_mention_any, field: outcome.explanation,
+         any_of: ["coverage gap", "has not expanded Medicaid"]}
+      - {id: fpl-dated, kind: conditional_presence,
+         when_present: outcome.fpl_percentage, must_accompany: outcome.guideline_year}
+      - {id: exact-programs, kind: equals, field: outcome.programs,
+         expected: BLOCKED_PENDING_VERIFIED_TABLES}
 
   - id: austin-gap-split-household
     location: {city: Austin, state: TX, zip: "78744"}
@@ -85,7 +102,16 @@ scenarios:
       A very common real pattern and easy to get wrong in either direction:
       declaring the whole household ineligible, or implying the adult is
       covered because the children are.
-    expected: BLOCKED_PENDING_VERIFIED_TABLES
+    assertions:
+      # Robust BECAUSE it is relational: children's thresholds sit far above any
+      # adult pathway, so the outcomes differ on EITHER side of 100% FPL. Only the
+      # adult's specific status turns on where the threshold falls.
+      - {id: split, kind: must_differ_within,
+         field_a: outcome.members.adult, field_b: outcome.members.children}
+      - {id: names-the-gap, kind: must_mention_any, field: outcome.explanation,
+         any_of: ["coverage gap", "has not expanded Medicaid"]}
+      - {id: adult-gap-status, kind: equals, field: outcome.members.adult,
+         expected: BLOCKED_PENDING_VERIFIED_TABLES}
 
   - id: austin-boundary-just-over
     location: {city: Austin, state: TX, zip: "78741"}
@@ -99,7 +125,27 @@ scenarios:
       Deliberately placed on the margin the stale tables move. Under the 2025
       tables this household reads differently than under current ones, which
       makes it the canary for guideline staleness as well as an eligibility test.
-    expected: BLOCKED_PENDING_VERIFIED_TABLES
+    # BLOCKED BY CONSTRUCTION, and that is the canary working rather than a gap.
+    # A case designed to sit ON the margin cannot have a robust input: a value
+    # unambiguous under both tables is by definition not on the boundary.
+    # Do not "fix" this by moving the scenario.
+    assertions:
+      # Anchored to the RUN's date, never to anything in this repo -- an expected
+      # value read from the repo can pass while both halves are stale. A false
+      # alarm in early January (before HHS publishes) is deliberate: an
+      # unnecessary notice costs a sentence, a missing one costs someone their
+      # benefits. Do not loosen this.
+      - {id: fpl-vintage-current, kind: equals, field: outcome.guideline_year,
+         expected_from: run_year}
+      - {id: fpl-dated, kind: conditional_presence,
+         when_present: outcome.fpl_percentage, must_accompany: outcome.guideline_year}
+      # NOT COVERED by the two above, and it is the worse failure: whether the
+      # FIGURES used match the vintage claimed. A hallucinated vintage is worse
+      # than an undated one -- confidently wrong, honest signal overwritten.
+      - {id: figures-match-vintage, kind: equals, field: outcome.fpl_percentage,
+         expected: BLOCKED_PENDING_VERIFIED_TABLES}
+      - {id: boundary-outcome, kind: equals, field: outcome.programs,
+         expected: BLOCKED_PENDING_VERIFIED_TABLES}
 
   # -------------------------------------------------------------------------
   # NON-AUSTIN (2 of 5). These are the only non-Texas coverage in the set, so
@@ -121,7 +167,19 @@ scenarios:
       position, different state. If BN returns the same answer for both, it has
       not applied expansion status at all -- which no aggregate score would
       reveal, but this pair makes unmissable.
-    expected: BLOCKED_PENDING_VERIFIED_TABLES
+    input: {annual_income: 8000}   # identical to austin-gap-childless-adult by design
+    assertions:
+      # BLOCKED, not dropped. "California has expanded" is a genuinely useful
+      # absolute check on this case -- but it would import an unverified fact from
+      # the same 2025 list into an assertion treated as authoritative. The failure
+      # would be a false alarm rather than a false pass, but that sets the
+      # precedent that "structurally safe" is enough to assert on. The must_differ
+      # relation carries this case without the assumption, so blocking costs
+      # nothing today and keeps the assertion queued rather than forgotten.
+      - {id: has-medicaid, kind: must_include, field: outcome.programs, value: medicaid,
+         expected: BLOCKED_PENDING_VERIFIED_TABLES}
+      - {id: exact-programs, kind: equals, field: outcome.programs,
+         expected: BLOCKED_PENDING_VERIFIED_TABLES}
 
   - id: older-couple-chronic-condition
     location: {city: Fresno, state: CA, zip: "93720"}
@@ -135,4 +193,17 @@ scenarios:
       Covers input fields and an income band the rest of the set never touches.
       Also the only case where provider-network and prescription matching
       matter, which is a large part of what the product actually outputs.
-    expected: BLOCKED_PENDING_VERIFIED_TABLES
+    assertions:
+      - {id: meds-considered, kind: must_mention_any, field: outcome.explanation,
+         any_of: ["prescription", "medication", "formulary"]}
+      - {id: csr-band, kind: equals, field: outcome.cost_sharing_reduction,
+         expected: BLOCKED_PENDING_VERIFIED_TABLES}
+
+relations:
+  # Identical household, identical income, opposite side of the largest branch in
+  # the system. Needs NO ground truth: "these must differ" does not require
+  # knowing what either should be. If BN returns the same answer for both, it has
+  # not applied expansion status at all -- which no aggregate score would reveal.
+  - {id: expansion-branch-applied, kind: must_differ,
+     of: austin-gap-childless-adult, with: expansion-state-mirror,
+     field: outcome.programs}
