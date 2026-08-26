@@ -8,9 +8,15 @@ dependencies = []
 [project.optional-dependencies]
 forms = [
     "pypdf>=4.0",
+    # pypdf delegates AES to `cryptography`; without it, reading the AESV2-
+    # encrypted Spanish CDSS form raises "cryptography>=3.1 is required for
+    # AES algorithm". Declared explicitly rather than relying on pypdf's
+    # extra name, which has moved between releases.
+    "cryptography>=3.1",
 ]
 dev = [
     "pypdf>=4.0",
+    "cryptography>=3.1",
     "pytest>=8.0",
     "pytest-bdd>=7.0",
 ]
