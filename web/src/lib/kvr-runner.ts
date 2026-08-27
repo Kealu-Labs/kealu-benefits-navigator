@@ -4,6 +4,7 @@
 //
 
 import { spawn } from 'child_process';
+import { writeVarFiles } from './secure-var-file';
 import path from 'path';
 import type { ChildProcess } from 'child_process';
 import type { HouseholdVars } from '@/types/session';
@@ -219,13 +220,12 @@ export function startRun(
   const kvrPath = resolveKvr();
   if (!kvrPath) throw new Error('kvr binary not found on PATH');
 
-  // Build --var key=value args from all populated vars
-  const varArgs: string[] = [];
-  for (const [key, value] of Object.entries(vars)) {
-    if (value !== undefined && value !== null && String(value).length > 0) {
-      varArgs.push('--var', `${key}=${String(value)}`);
-    }
-  }
+  // Applicant values go to the child by FILE REFERENCE, never on its command
+  // line: argv is world-readable via /proc/<pid>/cmdline, and these values are
+  // an applicant's income, medications, household composition and ZIP.
+  // See secure-var-file.ts for why the files live on tmpfs.
+  const varFiles = writeVarFiles(vars);
+  const varArgs = varFiles.args;
 
   const args = [
     'run',
@@ -255,6 +255,7 @@ export function startRun(
   // 'error' event that crashes the whole server — and 'close' never fires, so
   // the run would also be stranded in the registry.
   proc.on('error', (err: NodeJS.ErrnoException) => {
+    varFiles.cleanup();
     console.log(
       JSON.stringify({
         level: 'error',
@@ -302,6 +303,11 @@ export function startRun(
 let buffer = '';
 
 proc.stdout?.on('data', (chunk: Buffer) => {
+  // The child cannot produce output before it has parsed its arguments,
+  // which is when it reads the --var @files. First byte out is therefore
+  // proof the files have been consumed and can go. cleanup() is idempotent,
+  // and 'close'/'error' below cover a child that never speaks.
+  varFiles.cleanup();
   const activeRun = activeRuns.get(runId);
   if (activeRun) {
     activeRun.lastEventAt = Date.now();
@@ -337,6 +343,7 @@ proc.stdout?.on('data', (chunk: Buffer) => {
   );
 });
     proc.on('close', (code, signal) => {
+    varFiles.cleanup();
     if (buffer.trim()) {
       _processLine(runId, buffer, (payload) =>
         broadcastToRun(runId, payload),
