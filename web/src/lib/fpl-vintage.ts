@@ -31,11 +31,15 @@
  * The year of the HHS poverty guidelines currently embedded in
  * `contexts/community/benefits-navigator.md`.
  *
+ * Raised 2025 -> 2026 on 2026-08-27, in the SAME commit that replaced the
+ * tables. Before that the 2025 figures were live in a 2026 context,
+ * understating eligibility against applicants.
+ *
  * UPDATE THIS IN THE SAME COMMIT that updates the tables themselves, and never
  * on its own — raising it without changing the numbers converts a loud wrong
  * answer back into a silent one, which is strictly worse than leaving it.
  */
-export const EMBEDDED_FPL_GUIDELINE_YEAR = 2025;
+export const EMBEDDED_FPL_GUIDELINE_YEAR = 2026;
 
 export interface FplVintage {
   /** Guideline year the tables represent. */

@@ -11,37 +11,60 @@ Information without action is overhead. The user came to get enrolled, not to re
 
 FPL is the foundation for almost all benefit eligibility. Always calculate and state it explicitly.
 
-### 2025 HHS Poverty Guidelines (48 contiguous states + DC)
+### 2026 HHS Poverty Guidelines (48 contiguous states + DC)
+
+> **Source and vintage.** 100% FPL figures transcribed from the published HHS/ASPE
+> poverty guidelines at
+> <https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines>,
+> retrieved 2026-08-26 by deterministic extraction of the page's `<table>`
+> elements (no model in the transcription path), and cross-checked against two
+> independent derivations.
+>
+> **The percentage columns below are OUR arithmetic, not an HHS artifact.** ASPE
+> states it "does not calculate or prepare any official charts showing percentage
+> multiples of the poverty guidelines", and that "the rounding rules for these
+> calculations, as well as procedures for calculating monthly income, are
+> determined by the federal, state, and local program offices". So exact values
+> are shown, including cents, rather than a rounding convention being invented —
+> **no single convention would be correct for every programme.**
+>
+> **Do not treat a value near a cut-off as decisive.** How income is *counted* —
+> deductions, disregards, which income is included — varies by programme and moves
+> a determination by far more than these decimals. A household close to any line
+> must be told it is close and referred to a counsellor, not given a yes or a no.
+>
+> **These figures expire.** HHS reissues each January. If the run date is past the
+> guideline year above, say so rather than answering as though it were current.
 
 | Household Size | 100% FPL | 138% FPL (Medicaid expansion) | 200% FPL (CHIP typical) | 250% FPL (CSR) | 400% FPL (ACA subsidy cliff) |
 |---|---|---|---|---|---|
-| 1 | $15,650 | $21,597 | $31,300 | $39,125 | $62,600 |
-| 2 | $21,150 | $29,187 | $42,300 | $52,875 | $84,600 |
-| 3 | $26,650 | $36,777 | $53,300 | $66,625 | $106,600 |
-| 4 | $32,150 | $44,367 | $64,300 | $80,375 | $128,600 |
-| 5 | $37,650 | $51,957 | $75,300 | $94,125 | $150,600 |
-| 6 | $43,150 | $59,547 | $86,300 | $107,875 | $172,600 |
-| +each | +$5,500 | +$7,590 | +$11,000 | +$13,750 | +$22,000 |
+| 1 | $15,960 | $22,024.80 | $31,920 | $39,900 | $63,840 |
+| 2 | $21,640 | $29,863.20 | $43,280 | $54,100 | $86,560 |
+| 3 | $27,320 | $37,701.60 | $54,640 | $68,300 | $109,280 |
+| 4 | $33,000 | $45,540 | $66,000 | $82,500 | $132,000 |
+| 5 | $38,680 | $53,378.40 | $77,360 | $96,700 | $154,720 |
+| 6 | $44,360 | $61,216.80 | $88,720 | $110,900 | $177,440 |
+| +each | +$5,680 | +$7,838.40 | +$11,360 | +$14,200 | +$22,720 |
 
 ### Alaska
 
 | Household Size | 100% FPL | 138% FPL | 200% FPL | 250% FPL | 400% FPL |
 |---|---|---|---|---|---|
-| 1 | $19,560 | $26,993 | $39,120 | $48,900 | $78,240 |
-| 2 | $26,440 | $36,487 | $52,880 | $66,100 | $105,760 |
-| 3 | $33,320 | $45,982 | $66,640 | $83,300 | $133,280 |
-| 4 | $40,200 | $55,476 | $80,400 | $100,500 | $160,800 |
-| +each | +$6,880 | +$9,494 | +$13,760 | +$17,200 | +$27,520 |
+| 1 | $19,950 | $27,531 | $39,900 | $49,875 | $79,800 |
+| 2 | $27,050 | $37,329 | $54,100 | $67,625 | $108,200 |
+| 3 | $34,150 | $47,127 | $68,300 | $85,375 | $136,600 |
+| 4 | $41,250 | $56,925 | $82,500 | $103,125 | $165,000 |
+| +each | +$7,100 | +$9,798 | +$14,200 | +$17,750 | +$28,400 |
 
 ### Hawaii
 
 | Household Size | 100% FPL | 138% FPL | 200% FPL | 250% FPL | 400% FPL |
 |---|---|---|---|---|---|
-| 1 | $18,000 | $24,840 | $36,000 | $45,000 | $72,000 |
-| 2 | $24,340 | $33,589 | $48,680 | $60,850 | $97,360 |
-| 3 | $30,680 | $42,338 | $61,360 | $76,700 | $122,720 |
-| 4 | $37,020 | $51,088 | $74,040 | $92,550 | $148,080 |
-| +each | +$6,340 | +$8,749 | +$12,680 | +$15,850 | +$25,360 |
+| 1 | $18,360 | $25,336.80 | $36,720 | $45,900 | $73,440 |
+| 2 | $24,890 | $34,348.20 | $49,780 | $62,225 | $99,560 |
+| 3 | $31,420 | $43,359.60 | $62,840 | $78,550 | $125,680 |
+| 4 | $37,950 | $52,371 | $75,900 | $94,875 | $151,800 |
+| +each | +$6,530 | +$9,011.40 | +$13,060 | +$16,325 | +$26,120 |
 
 ### US Territories
 

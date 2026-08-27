@@ -81,15 +81,22 @@ describe('the guard STAYS SILENT when the tables are current', () => {
 describe('the embedded constant reflects reality', () => {
   it('is the year actually written into the context document', () => {
     // contexts/community/benefits-navigator.md is headed
-    // "2025 HHS Poverty Guidelines". If someone updates that file they must
+    // "2026 HHS Poverty Guidelines". If someone updates that file they must
     // update this constant in the SAME commit -- raising it alone would turn a
     // loud wrong answer back into a silent one.
-    expect(EMBEDDED_FPL_GUIDELINE_YEAR).toBe(2025);
+    expect(EMBEDDED_FPL_GUIDELINE_YEAR).toBe(2026);
   });
 
-  it('is currently stale, which is the live defect this guard exists for', () => {
-    // Not a hypothetical: as of today the shipped tables are behind.
+  it('is NOT currently stale -- the 2026 tables landed 2026-08-27', () => {
+    // This previously asserted `true`: the shipped tables were the 2025
+    // guidelines in a 2026 context, understating eligibility against
+    // applicants. Flipped in the same commit that replaced the tables and
+    // raised the constant.
+    //
+    // If this starts failing, the tables have fallen behind the calendar again.
+    // That is the guard working, not a broken test. Fix it by updating the
+    // tables from the published HHS source -- never by loosening this.
     const v = checkFplVintage(new Date());
-    expect(v.isStale).toBe(true);
+    expect(v.isStale).toBe(false);
   });
 });
