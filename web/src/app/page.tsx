@@ -10,6 +10,7 @@ import { getNextQuestion } from '@/lib/intake-flow';
 import AppShell from '@/components/app-shell';
 import LanguageSwitcher from '@/components/language-switcher';
 import { messages, t } from '@/i18n';
+import { checkFplVintage, fplStalenessNotice } from '@/lib/fpl-vintage';
 import type { Locale } from '@/i18n';
 import type { ChatMessage } from '@/types/session';
 import type { IntakeField } from '@/lib/intake-flow';
@@ -26,6 +27,11 @@ import type { ReportPayload } from '@/lib/report-assembler';
  * only the pre-computed next question field and display-safe session metadata.
  */
 export default async function Home() {
+  // Computed on the server: a client clock can be skewed or wrong, and this
+  // decides whether an applicant is warned that their result may understate
+  // what they qualify for.
+  const fplNotice = fplStalenessNotice(checkFplVintage());
+
   const cookieStore = await cookies();
   const sessionId = cookieStore.get('session')?.value;
 
@@ -93,6 +99,23 @@ export default async function Home() {
           className="w-full max-w-2xl mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm"
         >
           {t(msgs, 'offline_banner')}
+        </div>
+      )}
+
+      {fplNotice && (
+        <div
+          role="alert"
+          className="w-full max-w-2xl mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm"
+        >
+          {/*
+            NOT TRANSLATED, and that is a real deficiency rather than an
+            oversight: the message catalogs (i18n/messages/{en,es,zh-CN}.ts) are
+            all touched by the in-flight SAWS-2 branch, so adding keys here would
+            collide. A Spanish- or Chinese-speaking applicant gets this warning
+            in English, which for them is close to no warning at all. Must be
+            localised in the same change that resolves that collision.
+          */}
+          {fplNotice}
         </div>
       )}
 
