@@ -142,7 +142,7 @@ def execute_navigate(ctx, mock_kvr):
 
 
 @when("the tool is executed with mocked kvr assist")
-def execute_with_assist_mock(ctx, monkeypatch):
+def execute_with_assist_mock(ctx, monkeypatch, stub_kvr_path):
     import subprocess as sp
 
     # Ensure CMS API path is not taken so fallback (kvr assist) is used

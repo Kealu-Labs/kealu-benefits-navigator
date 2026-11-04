@@ -366,7 +366,7 @@ def compare_with_api(ctx, zip_code, monkeypatch):
         'compare_insurance_plans is called for ZIP "{zip_code}" with kvr fallback'
     )
 )
-def compare_with_fallback(ctx, zip_code, monkeypatch):
+def compare_with_fallback(ctx, zip_code, monkeypatch, stub_kvr_path):
     import subprocess as sp
 
     def mock_run(cmd, **kwargs):
@@ -384,7 +384,7 @@ def compare_with_fallback(ctx, zip_code, monkeypatch):
 
 
 @when(parsers.parse('check_eligibility is called for "{program}" with kvr fallback'))
-def check_elig_with_enrichment(ctx, program, monkeypatch):
+def check_elig_with_enrichment(ctx, program, monkeypatch, stub_kvr_path):
     import benefits_navigator.marketplace_api as api_mod
     import subprocess as sp
 

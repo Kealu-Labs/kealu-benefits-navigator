@@ -164,7 +164,7 @@ def configure_failure(ctx):
 
 
 @when("navigate_benefits completes")
-def run_navigate(ctx, tmp_path, monkeypatch):
+def run_navigate(ctx, tmp_path, monkeypatch, stub_kvr_path):
     import subprocess as sp
 
     if ctx.workflow_should_fail:
