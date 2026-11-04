@@ -76,6 +76,23 @@ describe('diagnostic allowlist', () => {
     expect(s.channel).toBe('session');
   });
 
+  it('keeps the fixed keys when a field tries to relabel the line', () => {
+    const [s] = captureLog(() =>
+      logSession('kvr_output', { channel: 'diagnostic', level: 'debug', event: 'x', ssn: '123-45-6789' }),
+    );
+    expect(s.channel).toBe('session');
+    expect(s.level).toBe('info');
+    expect(s.event).toBe('kvr_output');
+
+    const [d] = captureLog(() =>
+      logDiagnostic('e', { channel: 'session', level: 'debug', event: 'x' }),
+    );
+    expect(d.channel).toBe('diagnostic');
+    expect(d.level).toBe('info');
+    expect(d.event).toBe('e');
+    expect(d._droppedFields).toEqual(['channel', 'event', 'level']);
+  });
+
   it('lets the session channel carry applicant content unfiltered', () => {
     const [line] = captureLog(() =>
       logSession('intake_answer', { annual_income: 41200 }),
