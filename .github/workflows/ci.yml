@@ -1,7 +1,7 @@
 #
 # Copyright 2026 Kealu Inc. All rights reserved.
 #
-# CI — type-check, lint, unit/API tests, build, Python suite, and browser E2E.
+# CI — type-check, lint, unit/API tests, build, and the Python suite.
 #
 # Shape follows counslr-sos (hardened runner, SHA-pinned actions, per-ref
 # concurrency, least-privilege token). Two deliberate differences are noted
@@ -13,10 +13,12 @@ name: CI
 on:
   push:
     branches: [main]
-  # NOTE: deliberately no `branches:` filter here. The contractor on this repo
-  # opens stacked PRs against his own fork's feature branches, never against
-  # `main`. A base-branch filter (as counslr-sos uses) would silently never
-  # fire for those PRs — the failure mode is a green board that ran nothing.
+  # NOTE: deliberately no `branches:` filter here. A PR opened in this repo
+  # may target a feature branch rather than `main`, for example one PR in a
+  # stack. A base-branch filter (as counslr-sos uses) would silently never
+  # fire for such a PR — the failure mode is a green board that ran nothing.
+  # A PR opened inside a fork, from one fork branch to another, never runs
+  # this workflow whatever the trigger; it runs when the branch is PR'd here.
   pull_request:
   workflow_dispatch:
 

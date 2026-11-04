@@ -248,7 +248,18 @@ def mock_phase_outputs():
 
 
 @pytest.fixture
-def mock_kvr(tmp_path, monkeypatch):
+def stub_kvr_path(monkeypatch):
+    """Let kvr resolution succeed on a machine without kvr installed.
+
+    Use it wherever subprocess.run is already mocked. Without it, those tests
+    pass only where kvr is on PATH, because _resolve_kvr runs before the
+    mocked subprocess call and raises when it finds nothing.
+    """
+    monkeypatch.setattr(mcp_mod, "_resolve_kvr", lambda: "/stub/bin/kvr")
+
+
+@pytest.fixture
+def mock_kvr(tmp_path, monkeypatch, stub_kvr_path):
     """Mock kvr subprocess to return realistic phase output files.
 
     Returns a helper that lets tests configure which phases appear.
