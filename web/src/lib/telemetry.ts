@@ -10,8 +10,9 @@
  *
  *   - `diagnostic` — safe to leave the instance. Shipped to whoever is
  *     debugging, including contributors who have no access to the server.
- *     PII-free **by construction**: fields not named in DIAGNOSTIC_FIELDS are
- *     dropped, not filtered.
+ *     Field *names* are fixed by construction: fields not named in
+ *     DIAGNOSTIC_FIELDS are dropped, not filtered. Values are not checked, so a
+ *     call site must not pass applicant-derived text in an allowlisted field.
  *   - `session` — never leaves the instance. Anything derived from an
  *     applicant's answers belongs here, including free-form subprocess output.
  *
@@ -21,8 +22,10 @@
  * or an address looks like inside arbitrary text. A denylist fails open on
  * exactly the data that matters. This fails closed.
  *
- * The app guarantees the *content* property of each channel. Physically routing
- * them to different destinations is a deploy concern — split on `channel`.
+ * The app guarantees which field names each channel carries, and that `level`,
+ * `channel` and `event` are always the values the function set. Physically
+ * routing the channels to different destinations is a deploy concern — split
+ * on `channel`.
  */
 
 /**
@@ -34,9 +37,6 @@
  * exception message — does not belong on this list.
  */
 const DIAGNOSTIC_FIELDS = [
-  'level',
-  'event',
-  'channel',
   'runId',
   'route',
   'phase',
@@ -126,11 +126,12 @@ export function logDiagnostic(
 ): void {
   const { emitted, dropped } = applyDiagnosticAllowlist(fields);
 
+  // The fixed keys come after the spread, so a field cannot relabel the line.
   const payload: Record<string, unknown> = {
+    ...emitted,
     level,
     channel: 'diagnostic',
     event,
-    ...emitted,
   };
 
   if (dropped.length > 0) payload._droppedFields = dropped.sort();
@@ -147,7 +148,8 @@ export function logSession(
   fields: Record<string, unknown> = {},
   level: 'info' | 'warn' | 'error' = 'info',
 ): void {
-  console.log(JSON.stringify({ level, channel: 'session', event, ...fields }));
+  // The fixed keys come after the spread, so a field cannot relabel the line.
+  console.log(JSON.stringify({ ...fields, level, channel: 'session', event }));
 }
 
 /** Exported for tests asserting the allowlist has not silently grown. */
