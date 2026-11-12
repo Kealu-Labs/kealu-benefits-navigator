@@ -116,6 +116,27 @@ describe('toDiagnosticError', () => {
     expect(serialized).not.toContain('invalid income');
   });
 
+  it('drops a multi-line message even when a later line starts with "at "', () => {
+    const messages = [
+      'invalid address:\nat 123 Main St, Maria Ruiz',
+      'no such applicant\n   at Maria Ruiz',
+      'at 123 Main St, Maria Ruiz',
+      'first line\nsecond line\nat 41200 Elm Ave',
+    ];
+
+    for (const message of messages) {
+      const out = toDiagnosticError(new Error(message));
+      const serialized = JSON.stringify(out);
+
+      expect(out.errorClass).toBe('Error');
+      expect(out.stackFrames.length).toBeGreaterThan(0);
+      expect(serialized).not.toContain('Maria Ruiz');
+      expect(serialized).not.toContain('Main St');
+      expect(serialized).not.toContain('Elm Ave');
+      expect(serialized).not.toContain('41200');
+    }
+  });
+
   it('handles a non-Error throw without leaking its content', () => {
     const out = toDiagnosticError({ ssn: '123-45-6789' });
     expect(out.errorClass).toBe('object');
