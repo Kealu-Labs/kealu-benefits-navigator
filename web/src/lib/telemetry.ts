@@ -85,10 +85,18 @@ export function toDiagnosticError(err: unknown): {
     return { errorClass: typeof err, stackFrames: [] };
   }
 
-  const frames = (err.stack ?? '')
+  // The stack starts with "ErrorClass: message", and the message can span
+  // lines, so a message line that starts with "at " would pass the frame filter
+  // below. Cut the stack after the message before splitting it. If the message
+  // is empty or absent from the stack, the stack holds no message to cut.
+  const stack = err.stack ?? '';
+  const messageAt = err.message ? stack.indexOf(err.message) : -1;
+  const afterMessage =
+    messageAt >= 0 ? stack.slice(messageAt + err.message.length) : stack;
+
+  const frames = afterMessage
     .split('\n')
-    // Keep only true frame lines ("    at fn (file:1:2)"). The first stack line
-    // is "ErrorClass: message" and is deliberately discarded.
+    // Keep only true frame lines ("    at fn (file:1:2)").
     .filter((line) => /^\s*at\s/.test(line))
     .map((line) => line.trim());
 
